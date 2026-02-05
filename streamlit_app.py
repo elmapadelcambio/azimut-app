@@ -1,75 +1,62 @@
 import streamlit as st
 
-# Configuración de la página
-st.set_page_config(page_title="Azimut - Entrenamiento", page_icon="🧭", layout="centered")
+st.set_page_config(page_title="Azimut: Entrenamiento Completo", page_icon="🧭", layout="wide")
 
-# --- ESTILOS PERSONALIZADOS ---
-st.markdown("""
-    <style>
-    .main { background-color: #f5f7f9; }
-    .stButton>button { width: 100%; border-radius: 20px; height: 3em; background-color: #007BFF; color: white; }
-    .stTextArea>div>div>textarea { border-radius: 10px; }
-    </style>
-    """, unsafe_allow_html=True)
-
-# --- NAVEGACIÓN LATERAL ---
-st.sidebar.title("🧭 Navegación Azimut")
-menu = st.sidebar.radio("Ir a la fase:", [
-    "Inicio", 
-    "Semana 1: Vía Negativa", 
-    "Semana 3: Marcadores Somáticos",
-    "Semana 4: Fórmula de Resiliencia"
+# --- NAVEGACIÓN ---
+st.sidebar.title("🧭 Programa Azimut")
+st.sidebar.markdown("---")
+fase = st.sidebar.selectbox("Selecciona la Fase de tu Entrenamiento:", [
+    "1. Limpieza y Ritmos (Sem. 1-2)",
+    "2. Neurobiología y Cuerpo (Sem. 3-5)",
+    "3. Sesgos y Narrativas (Sem. 6-7)",
+    "4. Antifragilidad y Rumbo (Sem. 8-9)"
 ])
 
-# --- PÁGINA DE INICIO ---
-if menu == "Inicio":
-    st.title("Bienvenido a tu Brújula")
-    st.write("Esta app es el soporte práctico de tu programa **Azimut**. Aquí registrarás tus avances y entrenarás tu neurobiología.")
-    st.image("https://images.unsplash.com/photo-1506784919141-93504993957f?auto=format&fit=crop&w=800&q=80", caption="El camino se hace restando.")
+# --- FASE 1: LIMPIEZA ---
+if fase == "1. Limpieza y Ritmos (Sem. 1-2)":
+    st.title("🛡️ Fase 1: Despejar el Camino")
+    tab1, tab2 = st.tabs(["Vía Negativa", "Higiene de Luz"])
+    
+    with tab1:
+        st.subheader("La Vía Negativa")
+        st.write("¿Qué conducta vas a **eliminar** hoy para ganar claridad?")
+        resta = st.text_input("Hoy voy a dejar de...", placeholder="Ej: Mirar el móvil al despertar")
+        if resta: st.success(f"Objetivo: Menos es más. Has eliminado: {resta}")
 
-# --- SEMANA 1: VÍA NEGATIVA ---
-elif menu == "Semana 1: Vía Negativa":
-    st.header("📉 Semana 1: Vía Negativa")
-    st.subheader("Quitar primero lo que sobra")
-    
-    st.info("Popularizado por Nassim Taleb: eliminar lo que hace daño produce más beneficio que añadir soluciones nuevas.")
-    
-    malestar = st.text_area("¿Qué situación te drena energía hoy?")
-    if malestar:
-        peor = st.text_area("Si quisieras que esto empeorara drásticamente, ¿qué harías?")
-        if peor:
-            st.warning("⚠️ **Tu estrategia para hoy:** Simplemente deja de hacer lo que escribiste arriba.")
-            if st.button("Guardar compromiso de resta"):
-                st.success("Compromiso registrado. Menos es más.")
+    with tab2:
+        st.subheader("Ritmos Circadianos")
+        st.write("¿Has recibido luz solar directa hoy?")
+        luz = st.checkbox("Sí, he salido al exterior al menos 10 min.")
+        if luz: st.balloons()
 
-# --- SEMANA 3: MARCADORES SOMÁTICOS ---
-elif menu == "Semana 3: Marcadores Somáticos":
-    st.header("🧘 Marcadores Somáticos")
-    st.write("Identifica dónde se 'ancla' la emoción en tu cuerpo para reducir la activación de la amígdala.")
+# --- FASE 2: NEUROBIOLOGÍA ---
+elif fase == "2. Neurobiología y Cuerpo (Sem. 3-5)":
+    st.title("🧠 Fase 2: El Cuerpo como Brújula")
     
-    emocion = st.selectbox("¿Qué sientes ahora?", ["Ansiedad/Miedo", "Ira/Frustración", "Tristeza/Duelo", "Calma/Gratitud"])
+    st.subheader("Precisión Emocional")
+    emocion = st.select_slider("¿Cuál es la intensidad de tu emoción?", options=["Baja", "Media", "Alta", "Desbordante"])
     
-    st.write("### Mapa Corporal")
+    st.write("### Escáner de Marcadores Somáticos")
+    st.write("¿Dónde sientes la emoción?")
+    
     col1, col2 = st.columns(2)
-    
     with col1:
-        zonas = st.multiselect("¿En qué zona notas la sensación?", 
-                             ["Cuello/Garganta", "Pecho", "Abdomen", "Mandíbula", "Hombros"])
+        zona = st.multiselect("Zonas:", ["Garganta", "Pecho", "Estómago", "Mandíbula"])
     with col2:
-        tipo = st.radio("Tipo de sensación:", ["Calor", "Presión/Peso", "Nudo", "Vacío", "Hormigueo"])
+        sensacion = st.radio("Sensación:", ["Presión", "Calor", "Vacío", "Tensión"])
     
-    intensidad = st.select_slider("Intensidad (1 al 10)", options=list(range(1, 11)))
-    
-    if st.button("Registrar Sensación"):
-        st.write(f"✅ Has nombrado tu emoción como **{emocion}** con una intensidad de **{intensidad}**. Esto ya está bajando tu reactividad emocional.")
+    if st.button("Registrar en mi Mapa"):
+        st.info(f"Registrado: Sentimiento en {zona} como {sensacion}. La amígdala se está regulando...")
 
-# --- SEMANA 4: RESILIENCIA ---
-elif menu == "Semana 4: Fórmula de Resiliencia":
-    st.header("🧬 Fórmula de la Resiliencia")
-    st.latex(r''' Resiliencia = \frac{Reto}{Recursos} ''')
-    
-    st.write("Para aumentar tu resiliencia, puedes o bajar el reto o **subir tus recursos**.")
-    recurso = st.text_input("¿Qué recurso (sueño, respiración, apoyo) vas a fortalecer hoy?")
-    
-    if recurso:
-        st.success(f"Recurso '{recurso}' activado. Has equilibrado la balanza.")
+# --- FASE 3: SESGOS ---
+elif fase == "3. Sesgos y Narrativas (Sem. 6-7)":
+    st.title("⚖️ Fase 3: El Abogado del Diablo")
+    st.write("Identifica el sesgo que está dominando tu pensamiento.")
+    sesgo = st.selectbox("¿Qué trampa mental detectas?", ["Sesgo de Confirmación", "Negatividad", "Anclaje"])
+    pensamiento = st.text_area("¿Cuál es el pensamiento limitante?")
+    if pensamiento:
+        st.warning(f"**Reto del Abogado del Diablo:** Escribe una prueba real de que '{pensamiento}' NO es 100% cierto.")
+        prueba = st.text_input("Evidencia en contra:")
+
+# --- FASE 4: ANTIFRAGILIDAD ---
+elif fase == "4. Antifragilidad y Rumbo (Sem.
