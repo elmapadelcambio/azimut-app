@@ -1,62 +1,63 @@
 import streamlit as st
 
-st.set_page_config(page_title="Azimut: Entrenamiento Completo", page_icon="🧭", layout="wide")
+# Configuración profesional
+st.set_page_config(page_title="Azimut: Programa Completo", page_icon="🧭")
 
-# --- NAVEGACIÓN ---
-st.sidebar.title("🧭 Programa Azimut")
-st.sidebar.markdown("---")
-fase = st.sidebar.selectbox("Selecciona la Fase de tu Entrenamiento:", [
-    "1. Limpieza y Ritmos (Sem. 1-2)",
-    "2. Neurobiología y Cuerpo (Sem. 3-5)",
-    "3. Sesgos y Narrativas (Sem. 6-7)",
-    "4. Antifragilidad y Rumbo (Sem. 8-9)"
-])
+# --- SIDEBAR: LAS 9 SEMANAS ---
+st.sidebar.title("Navegación Azimut")
+semana = st.sidebar.select_slider(
+    "Selecciona la semana de entrenamiento:",
+    options=[1, 2, 3, 4, 5, 6, 7, 8, 9]
+)
 
-# --- FASE 1: LIMPIEZA ---
-if fase == "1. Limpieza y Ritmos (Sem. 1-2)":
-    st.title("🛡️ Fase 1: Despejar el Camino")
-    tab1, tab2 = st.tabs(["Vía Negativa", "Higiene de Luz"])
+st.sidebar.info(f"Estás en la Semana {semana}")
+
+# --- CONTENIDO DINÁMICO SEGÚN EL DOCUMENTO ---
+
+if semana == 1:
+    st.header("Semana 1: Vía Negativa")
+    st.write("Antes de sumar, toca restar. Identifica qué te sobra.")
+    resta = st.text_input("¿Qué hábito o conducta vas a ELIMINAR hoy?")
+    if resta:
+        st.success(f"Compromiso: Menos es más. Hoy dejas atrás: {resta}")
+
+elif semana == 2:
+    st.header("Semana 2: Ritmos y Entorno")
+    st.write("Ajusta tu biología a la luz solar.")
+    luz = st.radio("¿Has recibido luz solar directa en los primeros 20 min del día?", ["No", "Sí"])
+    if luz == "Sí": st.balloons()
+
+elif semana in [3, 4, 5]:
+    st.header(f"Semana {semana}: El Cuerpo y la Emoción")
+    st.subheader("Mapa de Marcadores Somáticos")
+    st.write("Localiza la sensación física para calmar la amígdala.")
     
-    with tab1:
-        st.subheader("La Vía Negativa")
-        st.write("¿Qué conducta vas a **eliminar** hoy para ganar claridad?")
-        resta = st.text_input("Hoy voy a dejar de...", placeholder="Ej: Mirar el móvil al despertar")
-        if resta: st.success(f"Objetivo: Menos es más. Has eliminado: {resta}")
-
-    with tab2:
-        st.subheader("Ritmos Circadianos")
-        st.write("¿Has recibido luz solar directa hoy?")
-        luz = st.checkbox("Sí, he salido al exterior al menos 10 min.")
-        if luz: st.balloons()
-
-# --- FASE 2: NEUROBIOLOGÍA ---
-elif fase == "2. Neurobiología y Cuerpo (Sem. 3-5)":
-    st.title("🧠 Fase 2: El Cuerpo como Brújula")
     
-    st.subheader("Precisión Emocional")
-    emocion = st.select_slider("¿Cuál es la intensidad de tu emoción?", options=["Baja", "Media", "Alta", "Desbordante"])
-    
-    st.write("### Escáner de Marcadores Somáticos")
-    st.write("¿Dónde sientes la emoción?")
     
     col1, col2 = st.columns(2)
     with col1:
-        zona = st.multiselect("Zonas:", ["Garganta", "Pecho", "Estómago", "Mandíbula"])
+        zona = st.selectbox("¿Dónde lo sientes?", ["Pecho", "Garganta", "Estómago", "Hombros", "Mandíbula"])
     with col2:
-        sensacion = st.radio("Sensación:", ["Presión", "Calor", "Vacío", "Tensión"])
-    
-    if st.button("Registrar en mi Mapa"):
-        st.info(f"Registrado: Sentimiento en {zona} como {sensacion}. La amígdala se está regulando...")
+        tipo = st.selectbox("Tipo de sensación:", ["Presión", "Calor", "Vibración", "Nudo"])
+        
+    if st.button("Registrar Marcador"):
+        st.info(f"Registrado: {tipo} en {zona}. Observa la sensación sin juzgarla.")
 
-# --- FASE 3: SESGOS ---
-elif fase == "3. Sesgos y Narrativas (Sem. 6-7)":
-    st.title("⚖️ Fase 3: El Abogado del Diablo")
-    st.write("Identifica el sesgo que está dominando tu pensamiento.")
-    sesgo = st.selectbox("¿Qué trampa mental detectas?", ["Sesgo de Confirmación", "Negatividad", "Anclaje"])
-    pensamiento = st.text_area("¿Cuál es el pensamiento limitante?")
+elif semana in [6, 7]:
+    st.header("Semanas 6-7: Sesgos y Narrativas")
+    st.write("Cuestiona tu propia historia (El Abogado del Diablo).")
+    pensamiento = st.text_area("¿Qué pensamiento te está limitando hoy?")
     if pensamiento:
-        st.warning(f"**Reto del Abogado del Diablo:** Escribe una prueba real de que '{pensamiento}' NO es 100% cierto.")
-        prueba = st.text_input("Evidencia en contra:")
+        st.warning(f"Reto: Escribe una prueba objetiva de que '{pensamiento}' NO es verdad.")
+        contraprueba = st.text_input("Evidencia contraria:")
 
-# --- FASE 4: ANTIFRAGILIDAD ---
-elif fase == "4. Antifragilidad y Rumbo (Sem.
+elif semana in [8, 9]:
+    st.header("Semanas 8-9: Antifragilidad")
+    st.write("Usa el caos para fortalecerte.")
+    caos = st.text_input("¿Qué imprevisto ha ocurrido?")
+    if caos:
+        st.success(f"Enfoque Azimut: ¿Cómo puedes usar este '{caos}' a tu favor?")
+
+# --- PIE DE PÁGINA ---
+st.sidebar.markdown("---")
+st.sidebar.write("© 2024 Azimut - Entrenamiento Neurobiológico")
