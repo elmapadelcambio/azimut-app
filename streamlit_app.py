@@ -1,63 +1,96 @@
 import streamlit as st
 
-# Configuración profesional
-st.set_page_config(page_title="Azimut: Programa Completo", page_icon="🧭")
+st.set_page_config(page_title="Azimut - Entrenamiento 9 Semanas", page_icon="🧭", layout="wide")
 
-# --- SIDEBAR: LAS 9 SEMANAS ---
-st.sidebar.title("Navegación Azimut")
-semana = st.sidebar.select_slider(
-    "Selecciona la semana de entrenamiento:",
-    options=[1, 2, 3, 4, 5, 6, 7, 8, 9]
-)
+# --- ESTILOS ---
+st.markdown("""
+    <style>
+    .stSelectbox label, .stSlider label { font-weight: bold; color: #1E3A8A; }
+    .css-1n76uvr { background-color: #F8FAFC; }
+    </style>
+    """, unsafe_allow_html=True)
 
-st.sidebar.info(f"Estás en la Semana {semana}")
+# --- NAVEGACIÓN ---
+st.sidebar.title("🧭 Navegación Azimut")
+semana = st.sidebar.selectbox("Selecciona la semana actual:", [
+    "Semana 1: Vía Negativa",
+    "Semana 2: Ritmos Circadianos",
+    "Semana 3: Marcadores Somáticos",
+    "Semana 4: Precisión Emocional",
+    "Semana 5: Fórmula de Resiliencia",
+    "Semana 6: Sesgos Cognitivos",
+    "Semana 7: El Abogado del Diablo",
+    "Semana 8: Antifragilidad",
+    "Semana 9: El Nuevo Rumbo"
+])
 
-# --- CONTENIDO DINÁMICO SEGÚN EL DOCUMENTO ---
+# --- LÓGICA DE CONTENIDO POR SEMANA ---
 
-if semana == 1:
-    st.header("Semana 1: Vía Negativa")
-    st.write("Antes de sumar, toca restar. Identifica qué te sobra.")
-    resta = st.text_input("¿Qué hábito o conducta vas a ELIMINAR hoy?")
-    if resta:
-        st.success(f"Compromiso: Menos es más. Hoy dejas atrás: {resta}")
+if semana == "Semana 1: Vía Negativa":
+    st.header("📉 Semana 1: Limpiar el Armario")
+    st.write("Identifica y resta para ganar.")
+    opcion = st.text_input("¿Qué hábito específico vas a ELIMINAR hoy para reducir ruido mental?")
+    if opcion: st.success(f"Compromiso: No haré '{opcion}'. Menos es más.")
 
-elif semana == 2:
-    st.header("Semana 2: Ritmos y Entorno")
-    st.write("Ajusta tu biología a la luz solar.")
-    luz = st.radio("¿Has recibido luz solar directa en los primeros 20 min del día?", ["No", "Sí"])
-    if luz == "Sí": st.balloons()
+elif semana == "Semana 2: Ritmos Circadianos":
+    st.header("☀️ Semana 2: Sincronización Biológica")
+    st.write("Cuestionario de higiene de luz:")
+    luz = st.checkbox("¿He recibido luz solar directa antes de las 10:00 AM?")
+    pantallas = st.checkbox("¿He usado filtro de luz azul o evitado pantallas tras el ocaso?")
+    if luz and pantallas: st.balloons()
 
-elif semana in [3, 4, 5]:
-    st.header(f"Semana {semana}: El Cuerpo y la Emoción")
-    st.subheader("Mapa de Marcadores Somáticos")
-    st.write("Localiza la sensación física para calmar la amígdala.")
+elif semana == "Semana 3: Marcadores Somáticos":
+    st.header("🧘 Semana 3: Localización Corporal")
+    st.write("No pienses la emoción, siéntela.")
     
-    
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        zona = st.selectbox("¿Dónde lo sientes?", ["Pecho", "Garganta", "Estómago", "Hombros", "Mandíbula"])
-    with col2:
-        tipo = st.selectbox("Tipo de sensación:", ["Presión", "Calor", "Vibración", "Nudo"])
-        
-    if st.button("Registrar Marcador"):
-        st.info(f"Registrado: {tipo} en {zona}. Observa la sensación sin juzgarla.")
+    zona = st.multiselect("¿Dónde notas la activación física?", ["Garganta", "Pecho", "Abdomen", "Hombros", "Mandíbula"])
+    tipo = st.radio("Cualidad de la sensación:", ["Calor", "Frío", "Presión", "Hormigueo", "Vacío"])
+    if st.button("Registrar en mi mapa"): st.info("Sensación registrada. Observar el cuerpo calma la amígdala.")
 
-elif semana in [6, 7]:
-    st.header("Semanas 6-7: Sesgos y Narrativas")
-    st.write("Cuestiona tu propia historia (El Abogado del Diablo).")
-    pensamiento = st.text_area("¿Qué pensamiento te está limitando hoy?")
-    if pensamiento:
-        st.warning(f"Reto: Escribe una prueba objetiva de que '{pensamiento}' NO es verdad.")
-        contraprueba = st.text_input("Evidencia contraria:")
+elif semana == "Semana 4: Precisión Emocional":
+    st.header("🏷️ Semana 4: Etiquetado de Precisión")
+    st.write("Nombra la emoción con exactitud para reducir su carga.")
+    base = st.selectbox("Emoción base:", ["Ira", "Miedo", "Tristeza", "Alegría"])
+    matiz = {
+        "Ira": ["Frustración", "Indignación", "Fastidio"],
+        "Miedo": ["Inquietud", "Desasosiego", "Aprensión"],
+        "Tristeza": ["Melancolía", "Desgana", "Pena"],
+        "Alegría": ["Gratitud", "Paz", "Euforia"]
+    }
+    exacta = st.select_slider("Elige el matiz exacto:", options=matiz[base])
+    st.write(f"Has identificado: **{exacta}**.")
 
-elif semana in [8, 9]:
-    st.header("Semanas 8-9: Antifragilidad")
-    st.write("Usa el caos para fortalecerte.")
-    caos = st.text_input("¿Qué imprevisto ha ocurrido?")
-    if caos:
-        st.success(f"Enfoque Azimut: ¿Cómo puedes usar este '{caos}' a tu favor?")
+elif semana == "Semana 5: Fórmula de Resiliencia":
+    st.header("🧬 Semana 5: Equilibrar la Balanza")
+    st.latex(r''' Resiliencia = \frac{Reto}{Recursos} ''')
+    reto = st.slider("Nivel de reto/estrés hoy:", 1, 10, 5)
+    recurso = st.text_input("¿Qué recurso vas a subir hoy (Sueño, Deporte, Respiración)?")
+    if recurso: st.success(f"Resiliencia aumentada mediante: {recurso}")
 
-# --- PIE DE PÁGINA ---
-st.sidebar.markdown("---")
-st.sidebar.write("© 2024 Azimut - Entrenamiento Neurobiológico")
+elif semana == "Semana 6: Sesgos Cognitivos":
+    st.header("⚖️ Semana 6: Trampas Mentales")
+    sesgo = st.selectbox("¿Qué sesgo detectas en tu juicio hoy?", ["Confirmación (solo veo lo que me da la razón)", "Negatividad (solo veo lo malo)", "Anclaje (me quedo con la primera idea)"])
+    ejemplo = st.text_area("Describe un pensamiento de hoy que podría estar sesgado:")
+    if ejemplo: st.warning("Has detectado el filtro. Ahora puedes ver la realidad.")
+
+elif semana == "Semana 7: El Abogado del Diablo":
+    st.header("😈 Semana 7: Desmontando Narrativas")
+    creencia = st.text_input("Escribe una creencia absoluta que tengas hoy (Ej: 'No valgo para esto')")
+    if creencia:
+        st.write(f"**Reto del Abogado del Diablo:** Escribe 3 evidencias REALES que contradigan que '{creencia}' sea verdad.")
+        st.text_area("Evidencias en contra:")
+
+elif semana == "Semana 8: Antifragilidad":
+    st.header("💎 Semana 8: El Beneficio del Caos")
+    st.write("Lo resiliente aguanta; lo antifrágil mejora con el golpe.")
+    caos = st.text_input("¿Qué imprevisto o error ha ocurrido esta semana?")
+    beneficio = st.text_input("¿Qué aprendizaje o ventaja puedes extraer de ese error?")
+    if beneficio: st.success("Has convertido el estrés en combustible.")
+
+elif semana == "Semana 9: El Nuevo Rumbo":
+    st.header("🧭 Semana 9: Integración y Azimut")
+    st.write("Tu nueva brújula está calibrada.")
+    reflexion = st.text_area("¿Cuál es la principal diferencia entre quien empezó la Semana 1 y quien eres hoy?")
+    if st.button("Finalizar Programa"):
+        st.balloons()
+        st.header("¡Buen viaje, Azimut!")
