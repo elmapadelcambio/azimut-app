@@ -1,96 +1,126 @@
 import streamlit as st
+from datetime import datetime
 
-st.set_page_config(page_title="Azimut - Entrenamiento 9 Semanas", page_icon="🧭", layout="wide")
+st.set_page_config(page_title="Azimut - Tu Brújula Interior", page_icon="🧭", layout="wide")
 
-# --- ESTILOS ---
-st.markdown("""
-    <style>
-    .stSelectbox label, .stSlider label { font-weight: bold; color: #1E3A8A; }
-    .css-1n76uvr { background-color: #F8FAFC; }
-    </style>
-    """, unsafe_allow_html=True)
+# --- INICIALIZACIÓN DE MEMORIA (Para guardar respuestas) ---
+if 'historial' not in st.session_state:
+    st.session_state.historial = []
+
+def guardar_respuesta(semana, etiqueta, valor):
+    fecha = datetime.now().strftime("%d/%m/%Y %H:%M")
+    st.session_state.historial.append({"Fecha": fecha, "Semana": semana, "Concepto": etiqueta, "Respuesta": valor})
+    st.toast(f"✅ Guardado en la Semana {semana}")
 
 # --- NAVEGACIÓN ---
-st.sidebar.title("🧭 Navegación Azimut")
-semana = st.sidebar.selectbox("Selecciona la semana actual:", [
-    "Semana 1: Vía Negativa",
-    "Semana 2: Ritmos Circadianos",
-    "Semana 3: Marcadores Somáticos",
-    "Semana 4: Precisión Emocional",
-    "Semana 5: Fórmula de Resiliencia",
-    "Semana 6: Sesgos Cognitivos",
+st.sidebar.title("🧭 Programa Azimut")
+menu = st.sidebar.radio("Ir a:", [
+    "Inicio", 
+    "Semana 1: Vía Negativa", 
+    "Semana 2: Ritmos Circadianos", 
+    "Semana 3: Marcadores Somáticos", 
+    "Semana 4: Registro de Precisión", 
+    "Semana 5: Gestión de Recursos",
+    "Semana 6: Detector de Sesgos",
     "Semana 7: El Abogado del Diablo",
     "Semana 8: Antifragilidad",
-    "Semana 9: El Nuevo Rumbo"
+    "Semana 9: El Nuevo Rumbo",
+    "📊 MIS RESPUESTAS"
 ])
 
-# --- LÓGICA DE CONTENIDO POR SEMANA ---
+# --- SEMANA 1 ---
+if menu == "Semana 1: Vía Negativa":
+    st.header("📉 Semana 1: Vía Negativa")
+    st.write("Identifica conductas tóxicas o innecesarias para eliminarlas.")
+    dato = st.text_input("¿Qué vas a dejar de hacer hoy?")
+    if st.button("Guardar Compromiso"):
+        guardar_respuesta(1, "Resta del día", dato)
 
-if semana == "Semana 1: Vía Negativa":
-    st.header("📉 Semana 1: Limpiar el Armario")
-    st.write("Identifica y resta para ganar.")
-    opcion = st.text_input("¿Qué hábito específico vas a ELIMINAR hoy para reducir ruido mental?")
-    if opcion: st.success(f"Compromiso: No haré '{opcion}'. Menos es más.")
-
-elif semana == "Semana 2: Ritmos Circadianos":
+# --- SEMANA 2 (10 Puntos de Higiene) ---
+elif menu == "Semana 2: Ritmos Circadianos":
     st.header("☀️ Semana 2: Sincronización Biológica")
-    st.write("Cuestionario de higiene de luz:")
-    luz = st.checkbox("¿He recibido luz solar directa antes de las 10:00 AM?")
-    pantallas = st.checkbox("¿He usado filtro de luz azul o evitado pantallas tras el ocaso?")
-    if luz and pantallas: st.balloons()
-
-elif semana == "Semana 3: Marcadores Somáticos":
-    st.header("🧘 Semana 3: Localización Corporal")
-    st.write("No pienses la emoción, siéntela.")
+    st.write("Marca los elementos de higiene biológica que has cumplido hoy:")
+    check_list = [
+        "Ver la luz del sol al despertar (10-20 min)", "Evitar luz azul 2h antes de dormir",
+        "Cenar al menos 3h antes de acostarse", "Exposición al frío/ducha fresca",
+        "Movimiento físico matutino", "Café solo después de 90 min despierto",
+        "Temperatura del dormitorio fresca", "Oscuridad total para dormir",
+        "Eliminar notificaciones del móvil por la noche", "Contacto con la naturaleza/tierra (Grounding)"
+    ]
+    seleccionados = []
+    for item in check_list:
+        if st.checkbox(item): seleccionados.append(item)
     
-    zona = st.multiselect("¿Dónde notas la activación física?", ["Garganta", "Pecho", "Abdomen", "Hombros", "Mandíbula"])
-    tipo = st.radio("Cualidad de la sensación:", ["Calor", "Frío", "Presión", "Hormigueo", "Vacío"])
-    if st.button("Registrar en mi mapa"): st.info("Sensación registrada. Observar el cuerpo calma la amígdala.")
+    if st.button("Registrar Día"):
+        guardar_respuesta(2, "Hitos cumplidos", ", ".join(seleccionados))
 
-elif semana == "Semana 4: Precisión Emocional":
-    st.header("🏷️ Semana 4: Etiquetado de Precisión")
-    st.write("Nombra la emoción con exactitud para reducir su carga.")
-    base = st.selectbox("Emoción base:", ["Ira", "Miedo", "Tristeza", "Alegría"])
-    matiz = {
-        "Ira": ["Frustración", "Indignación", "Fastidio"],
-        "Miedo": ["Inquietud", "Desasosiego", "Aprensión"],
-        "Tristeza": ["Melancolía", "Desgana", "Pena"],
-        "Alegría": ["Gratitud", "Paz", "Euforia"]
-    }
-    exacta = st.select_slider("Elige el matiz exacto:", options=matiz[base])
-    st.write(f"Has identificado: **{exacta}**.")
+# --- SEMANA 3 ---
+elif menu == "Semana 3: Marcadores Somáticos":
+    st.header("🧘 Semana 3: Marcadores Somáticos")
+    
+    zona = st.selectbox("¿Dónde lo sientes?", ["Pecho", "Garganta", "Abdomen", "Mandíbula", "Hombros"])
+    tipo = st.text_input("Describe la sensación (calor, nudo, presión...):")
+    if st.button("Registrar Mapa"):
+        guardar_respuesta(3, f"Localización: {zona}", tipo)
 
-elif semana == "Semana 5: Fórmula de Resiliencia":
-    st.header("🧬 Semana 5: Equilibrar la Balanza")
-    st.latex(r''' Resiliencia = \frac{Reto}{Recursos} ''')
-    reto = st.slider("Nivel de reto/estrés hoy:", 1, 10, 5)
-    recurso = st.text_input("¿Qué recurso vas a subir hoy (Sueño, Deporte, Respiración)?")
-    if recurso: st.success(f"Resiliencia aumentada mediante: {recurso}")
+# --- SEMANAS 4 A 7 (REGISTROS MULTI-USO) ---
+elif menu == "Semana 4: Registro de Precisión":
+    st.header("🏷️ Semana 4: Precisión Emocional (Registro Diario)")
+    emo = st.selectbox("Emoción detectada:", ["Inquietud", "Pavor", "Frustración", "Indignación", "Melancolía", "Paz", "Gratitud"])
+    if st.button("Añadir Registro"):
+        guardar_respuesta(4, "Etiquetado emocional", emo)
 
-elif semana == "Semana 6: Sesgos Cognitivos":
-    st.header("⚖️ Semana 6: Trampas Mentales")
-    sesgo = st.selectbox("¿Qué sesgo detectas en tu juicio hoy?", ["Confirmación (solo veo lo que me da la razón)", "Negatividad (solo veo lo malo)", "Anclaje (me quedo con la primera idea)"])
-    ejemplo = st.text_area("Describe un pensamiento de hoy que podría estar sesgado:")
-    if ejemplo: st.warning("Has detectado el filtro. Ahora puedes ver la realidad.")
+elif menu == "Semana 5: Gestión de Recursos":
+    st.header("🧬 Semana 5: Fórmula de Resiliencia")
+    recurso = st.text_input("¿Qué recurso (sueño, calma, apoyo) has fortalecido hoy?")
+    if st.button("Añadir Recurso"):
+        guardar_respuesta(5, "Recurso fortalecido", recurso)
 
-elif semana == "Semana 7: El Abogado del Diablo":
+elif menu == "Semana 6: Detector de Sesgos":
+    st.header("⚖️ Semana 6: Identificar Trampas")
+    sesgo = st.selectbox("Sesgo identificado hoy:", ["Confirmación", "Negatividad", "Anclaje", "Efecto Halo"])
+    obs = st.text_area("Contexto de la situación:")
+    if st.button("Registrar Sesgo"):
+        guardar_respuesta(6, f"Sesgo: {sesgo}", obs)
+
+elif menu == "Semana 7: El Abogado del Diablo":
     st.header("😈 Semana 7: Desmontando Narrativas")
-    creencia = st.text_input("Escribe una creencia absoluta que tengas hoy (Ej: 'No valgo para esto')")
-    if creencia:
-        st.write(f"**Reto del Abogado del Diablo:** Escribe 3 evidencias REALES que contradigan que '{creencia}' sea verdad.")
-        st.text_area("Evidencias en contra:")
+    creencia = st.text_input("Creencia limitante detectada:")
+    contra = st.text_area("Evidencia real que la contradice:")
+    if st.button("Registrar Desafío"):
+        guardar_respuesta(7, f"Creencia: {creencia}", contra)
 
-elif semana == "Semana 8: Antifragilidad":
-    st.header("💎 Semana 8: El Beneficio del Caos")
-    st.write("Lo resiliente aguanta; lo antifrágil mejora con el golpe.")
-    caos = st.text_input("¿Qué imprevisto o error ha ocurrido esta semana?")
-    beneficio = st.text_input("¿Qué aprendizaje o ventaja puedes extraer de ese error?")
-    if beneficio: st.success("Has convertido el estrés en combustible.")
+# --- SEMANA 8 ---
+elif menu == "Semana 8: Antifragilidad":
+    st.header("💎 Semana 8: Cosechar del Caos")
+    caos = st.text_input("¿Qué imprevisto ha ocurrido?")
+    ventaja = st.text_input("¿Qué beneficio o aprendizaje has extraído?")
+    if st.button("Registrar Evolución"):
+        guardar_respuesta(8, f"Evento: {caos}", ventaja)
 
-elif semana == "Semana 9: El Nuevo Rumbo":
-    st.header("🧭 Semana 9: Integración y Azimut")
-    st.write("Tu nueva brújula está calibrada.")
-    reflexion = st.text_area("¿Cuál es la principal diferencia entre quien empezó la Semana 1 y quien eres hoy?")
-    if st.button("Finalizar Programa"):
+# --- SEMANA 9 ---
+elif menu == "Semana 9: El Nuevo Rumbo":
+    st.header("🧭 Semana 9: Integración")
+    st.write("### Logros alcanzados en este programa:")
+    logros = [
+        "Mayor consciencia de mi cuerpo", "Capacidad de frenar impulsos",
+        "Mejor calidad de descanso", "Claridad para decir NO (Vía Negativa)",
+        "Detección de trampas mentales", "Menos reactividad emocional"
+    ]
+    for l in logros: st.write(f"✅ {l}")
+    
+    reflexion = st.text_area("Tu reflexión final:")
+    if st.button("Cerrar Mapa"):
+        guardar_respuesta(9, "Reflexión Final", reflexion)
         st.balloons()
-        st.header("¡Buen viaje, Azimut!")
+
+# --- APARTADO: MIS RESPUESTAS ---
+elif menu == "📊 MIS RESPUESTAS":
+    st.title("📊 Tu Historial de Progreso")
+    if not st.session_state.historial:
+        st.write("Aún no tienes registros guardados.")
+    else:
+        st.table(st.session_state.historial)
+        if st.button("Limpiar todo el historial"):
+            st.session_state.historial = []
+            st.rerun()
