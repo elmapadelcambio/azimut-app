@@ -9,7 +9,7 @@ import streamlit as st
 # =========================================================
 # CONFIG
 # =========================================================
-st.set_page_config(page_title="Azimut - Tu Brújula Interior", page_icon="🧭", layout="wide")
+st.set_page_config(page_title="Azimut", page_icon="🧭", layout="wide")
 
 BRAND_BLUE = "#00a7ff"
 BRAND_YELLOW = "#f9e205"
@@ -31,6 +31,7 @@ st.markdown(
     <style>
       .stApp {{ background: {BRAND_WHITE}; }}
 
+      /* Sidebar */
       section[data-testid="stSidebar"] {{
         background: {BRAND_BLUE};
       }}
@@ -38,8 +39,21 @@ st.markdown(
         color: {BRAND_WHITE} !important;
       }}
 
+      /* Menú (radio): texto en amarillo + negrita */
+      section[data-testid="stSidebar"] div[role="radiogroup"] * {{
+        color: {BRAND_YELLOW} !important;
+        font-weight: 800 !important;
+      }}
+
+      /* Radio seleccionado: marca amarilla (si el navegador respeta accent-color) */
+      section[data-testid="stSidebar"] input[type="radio"] {{
+        accent-color: {BRAND_YELLOW} !important;
+      }}
+
+      /* Títulos */
       h1, h2, h3, h4 {{ color: {BRAND_BLUE} !important; }}
 
+      /* Botones */
       div.stButton > button {{
         background-color: {BRAND_BLUE} !important;
         color: {BRAND_YELLOW} !important;
@@ -52,7 +66,7 @@ st.markdown(
         filter: brightness(0.95);
       }}
 
-      /* Inputs con borde suave */
+      /* Inputs */
       .stTextInput input, .stTextArea textarea, .stSelectbox div {{
         border-radius: 10px !important;
       }}
@@ -105,68 +119,46 @@ def save_history(hist):
 if "historial" not in st.session_state:
     st.session_state.historial = load_history()
 
-def guardar_respuesta(semana: int, fecha_str: str, concepto: str, respuesta: str, meta: dict | None = None):
-    """
-    Guarda registros con estructura estable:
-    - Semana
-    - Fecha (manual por bloque, salvo semana 9)
-    - Timestamp real (para ordenar si hiciera falta)
-    - Concepto
-    - Respuesta
-    - Meta opcional (lugar, por qué, etc.)
-    """
+def guardar_respuesta(bloque: int, fecha_str: str, concepto: str, respuesta: str, meta: dict | None = None):
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     entry = {
         "timestamp": ts,
-        "semana": int(semana),
+        "bloque": int(bloque),
         "fecha": fecha_str if fecha_str else "",
         "concepto": concepto,
         "respuesta": respuesta if respuesta else "",
-        "meta": meta or {}
+        "meta": meta or {},
     }
     st.session_state.historial.append(entry)
     save_history(st.session_state.historial)
-    st.toast(f"✅ Guardado — Semana {semana}")
+    st.toast(f"✅ Guardado — Bloque {bloque}")
 
 # =========================================================
 # EXTRACCIONES DESDE TUS TEXTOS
 # =========================================================
 def extract_emotions_from_azimut(text: str) -> list[str]:
-    """
-    Extrae emociones y matices de la tabla y de la guía rápida.
-    No hace NLP: usa patrones robustos para texto plano.
-    """
     if not text:
         return []
-
     emotions = []
 
-    # 1) Captura de cabeceras de emociones primarias (Amor, Miedo, etc.)
-    # Buscamos líneas aisladas con palabra capitalizada típica
-    primary_candidates = ["Amor", "Miedo", "Tristeza", "Ira", "Alegría", "Vergüenza", "Asco", "Sorpresa", "Calma", "Ilusión", "Culpa"]
+    primary_candidates = [
+        "Amor", "Miedo", "Tristeza", "Ira", "Alegría", "Vergüenza",
+        "Asco", "Sorpresa", "Calma", "Ilusión", "Culpa"
+    ]
     for e in primary_candidates:
         if re.search(rf"\b{re.escape(e)}\b", text):
             emotions.append(e)
 
-    # 2) Captura de matices: "Afecto, ternura, pasión, ..."
-    # Buscamos listas separadas por comas que aparecen tras una emoción
-    # (heurístico: extraemos palabras con letras y tildes, separadas por comas)
     for line in text.splitlines():
         line = line.strip()
         if "," in line and len(line) < 140:
-            # Evitamos líneas con demasiados símbolos
             if re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", line) and not re.search(r"[-]{5,}", line):
-                # split comas
                 parts = [normalize_space(p) for p in line.split(",")]
-                # nos quedamos con tokens "palabra/frase corta"
                 for p in parts:
-                    # evita frases largas
                     if 2 <= len(p) <= 22 and re.match(r"^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ ]+$", p):
-                        # evita "Emoción Primaria" etc.
                         if p.lower() not in {"emoción primaria", "matices"}:
                             emotions.append(p)
 
-    # Limpieza final: capitalizamos primera letra si está en minúscula
     cleaned = []
     for e in emotions:
         e = e.strip()
@@ -180,12 +172,6 @@ def extract_emotions_from_azimut(text: str) -> list[str]:
 EMOTIONS = extract_emotions_from_azimut(AZIMUT_TEXT)
 
 def circadian_checklist_from_corpus(azimut: str, news: str) -> list[str]:
-    """
-    Tu bloque 2: 10–12 puntos de higiene/ritmo coherentes con tu mensaje.
-    Aquí el corpus habla fuerte de regularidad del sueño y entorno.
-    Completamos con anclas circadianas estándar (luz, comidas, cafeína, etc.)
-    sin traicionar el tono.
-    """
     base = [
         "Me acuesto y me levanto a horas consistentes (también fines de semana)",
         "Dormitorio fresco, oscuro y silencioso",
@@ -198,14 +184,13 @@ def circadian_checklist_from_corpus(azimut: str, news: str) -> list[str]:
         "Exposición a luz brillante solo en horario diurno (tarde/noche: luz baja)",
         "Si hago siesta, que sea corta y no tarde",
         "Contacto con el exterior (naturaleza / aire / paseo) como ancla diaria",
-        "Mantengo coherencia entre luz, comida y actividad (no cada día un huso horario)"
+        "Mantengo coherencia entre luz, comida y actividad (no cada día un huso horario)",
     ]
     return base[:12]
 
-CHECKLIST_WEEK2 = circadian_checklist_from_corpus(AZIMUT_TEXT, NEWS_TEXT)
+CHECKLIST_BLOCK2 = circadian_checklist_from_corpus(AZIMUT_TEXT, NEWS_TEXT)
 
 def biases_from_corpus(news: str, azimut: str) -> list[str]:
-    # Sesgos mencionados explícitamente en tus textos + base útil
     biases = [
         "Sesgo de confirmación",
         "Heurística de autoridad",
@@ -224,7 +209,6 @@ def biases_from_corpus(news: str, azimut: str) -> list[str]:
 BIASES = biases_from_corpus(NEWS_TEXT, AZIMUT_TEXT)
 
 def limiting_beliefs_examples(news: str, azimut: str) -> list[str]:
-    # Ejemplos citados/claros en tu corpus
     beliefs = [
         "“No puedo.”",
         "“Debo tener control sobre todo para sentirme segura.”",
@@ -239,7 +223,6 @@ def limiting_beliefs_examples(news: str, azimut: str) -> list[str]:
 BELIEF_EXAMPLES = limiting_beliefs_examples(NEWS_TEXT, AZIMUT_TEXT)
 
 def azimut_benefits(news: str, azimut: str) -> list[str]:
-    # Beneficios explícitos en tu corpus (y compatibles con el programa)
     benefits = [
         "Entender tus emociones (sin juzgarte)",
         "Regular tu respuesta al estrés",
@@ -254,7 +237,7 @@ def azimut_benefits(news: str, azimut: str) -> list[str]:
     ]
     return unique_preserve(benefits)
 
-BENEFITS_WEEK9 = azimut_benefits(NEWS_TEXT, AZIMUT_TEXT)
+BENEFITS_BLOCK9 = azimut_benefits(NEWS_TEXT, AZIMUT_TEXT)
 
 # =========================================================
 # UI: NAVEGACIÓN
@@ -264,25 +247,25 @@ menu = st.sidebar.radio(
     "Ir a:",
     [
         "Inicio",
-        "Semana 1: Vía Negativa",
-        "Semana 2: Ritmos Circadianos",
-        "Semana 3: Marcadores Somáticos",
-        "Semana 4: Registro de Precisión",
-        "Semana 5: Gestión de Recursos",
-        "Semana 6: Detector de Sesgos",
-        "Semana 7: El Abogado del Diablo",
-        "Semana 8: Antifragilidad",
-        "Semana 9: El Nuevo Rumbo",
+        "Bloque 1: Vía Negativa",
+        "Bloque 2: Ritmos Circadianos",
+        "Bloque 3: Marcadores Somáticos",
+        "Bloque 4: Registro de Precisión",
+        "Bloque 5: Gestión de Recursos",
+        "Bloque 6: Detector de Sesgos",
+        "Bloque 7: El Abogado del Diablo",
+        "Bloque 8: Antifragilidad",
+        "Bloque 9: El Nuevo Rumbo",
         "📊 MIS RESPUESTAS",
     ],
 )
 
 # =========================================================
-# COMPONENTE FECHA POR BLOQUE (semana 1–8)
+# FECHA POR BLOQUE (1–8)
 # =========================================================
-def fecha_bloque(semana: int):
+def fecha_bloque(bloque: int):
     st.caption("Fecha del registro (manual, para tu seguimiento):")
-    key = f"fecha_semana_{semana}"
+    key = f"fecha_bloque_{bloque}"
     default = st.session_state.get(key, date.today())
     d = st.date_input("Fecha", value=default, key=key)
     return d.strftime("%d/%m/%Y")
@@ -291,15 +274,24 @@ def fecha_bloque(semana: int):
 # PANTALLAS
 # =========================================================
 if menu == "Inicio":
-    st.title("Azimut — Tu Brújula Interior")
+    st.title("Azimut")
     st.write(
-        "Una app mínima y directa: sin cuenta, sin fricción, solo registros útiles. "
-        "Cada bloque guarda por **semana + fecha** para que puedas ver la película, no solo el fotograma."
+        "Esta app es un cuaderno de navegación: no para *pensar más*, sino para **pensar mejor**.\n\n"
+        "La idea es sencilla y obstinada: **cada día** completas el bloque (o bloques) que te toquen, "
+        "sin necesidad de hacerlo perfecto. Al principio costará —como afinar el oído en una sala con eco—, "
+        "pero con los días notarás algo muy concreto: **identificarás antes lo que te pasa**, "
+        "y tus explicaciones tendrán más precisión y menos niebla.\n\n"
+        "Esa mejora no es un sentimiento: es **evidencia**. Se ve en el detalle, en la claridad, "
+        "en la rapidez con la que nombras una emoción, detectas un sesgo o encuentras el punto exacto del cuerpo "
+        "donde se tensó el sistema.\n\n"
+        "Tus respuestas se guardan en **“📊 MIS RESPUESTAS”**. Ahí podrás revisar el historial por bloques y por fecha, "
+        "ver **qué patrones se repiten**, y también el avance en otros puntos (más matices, más contexto, mejores reencuadres).\n\n"
+        "Deja **“Bloque 9: El Nuevo Rumbo”** para el final: es el cierre del programa, cuando hayas completado el recorrido."
     )
 
-# --- SEMANA 1 ---
-elif menu == "Semana 1: Vía Negativa":
-    st.header("📉 Semana 1: Vía Negativa")
+# --- BLOQUE 1 ---
+elif menu == "Bloque 1: Vía Negativa":
+    st.header("📉 Bloque 1: Vía Negativa")
     st.write("Identifica lo que resta. Hoy no añadimos herramientas: quitamos lastre.")
 
     f = fecha_bloque(1)
@@ -307,23 +299,23 @@ elif menu == "Semana 1: Vía Negativa":
     if st.button("Guardar compromiso"):
         guardar_respuesta(1, f, "Vía negativa — Resta del día", dato)
 
-# --- SEMANA 2 ---
-elif menu == "Semana 2: Ritmos Circadianos":
-    st.header("☀️ Semana 2: Sincronización biológica")
+# --- BLOQUE 2 ---
+elif menu == "Bloque 2: Ritmos Circadianos":
+    st.header("☀️ Bloque 2: Sincronización biológica")
     st.write("Marca los puntos que has cumplido hoy (10–12 anclas diarias).")
 
     f = fecha_bloque(2)
     seleccionados = []
-    for item in CHECKLIST_WEEK2:
+    for item in CHECKLIST_BLOCK2:
         if st.checkbox(item):
             seleccionados.append(item)
 
     if st.button("Guardar registro"):
         guardar_respuesta(2, f, "Ritmos circadianos — Hitos", ", ".join(seleccionados))
 
-# --- SEMANA 3 ---
-elif menu == "Semana 3: Marcadores Somáticos":
-    st.header("🧘 Semana 3: Marcadores somáticos")
+# --- BLOQUE 3 ---
+elif menu == "Bloque 3: Marcadores Somáticos":
+    st.header("🧘 Bloque 3: Marcadores somáticos")
     st.write("El cuerpo habla en dialectos: tensión, nudo, calor, vacío. Vamos a transcribirlo.")
 
     f = fecha_bloque(3)
@@ -335,9 +327,9 @@ elif menu == "Semana 3: Marcadores Somáticos":
     if st.button("Guardar registro"):
         guardar_respuesta(3, f, f"Marcador somático — Localización: {zona}", tipo)
 
-# --- SEMANA 4 ---
-elif menu == "Semana 4: Registro de Precisión":
-    st.header("🏷️ Semana 4: Precisión emocional (registro diario)")
+# --- BLOQUE 4 ---
+elif menu == "Bloque 4: Registro de Precisión":
+    st.header("🏷️ Bloque 4: Precisión emocional (registro diario)")
     st.write("Aquí el objetivo no es ‘sentir menos’, sino **nombrar mejor**.")
 
     f = fecha_bloque(4)
@@ -351,15 +343,19 @@ elif menu == "Semana 4: Registro de Precisión":
         meta = {"por_que": por_que, "donde": donde, "que_paso": que_paso}
         guardar_respuesta(4, f, "Precisión emocional — Etiquetado", emo, meta=meta)
 
-# --- SEMANA 5 ---
-elif menu == "Semana 5: Gestión de Recursos":
-    st.header("🧬 Semana 5: Gestión de recursos")
+# --- BLOQUE 5 ---
+elif menu == "Bloque 5: Gestión de Recursos":
+    st.header("🧬 Bloque 5: Gestión de recursos")
     st.write("Un recurso es aquello que te deja más capaz después de usarlo, no más roto.")
 
     f = fecha_bloque(5)
 
     st.caption("Ejemplos (por si hoy tu mente viene con la persiana a medio bajar):")
-    st.write("- Sueño / descanso real\n- Calma / respiración\n- Apoyo social\n- Orden del entorno\n- Movimiento\n- Nutrición simple\n- Tiempo sin pantallas\n- Límites / decir NO\n- Planificación mínima viable\n- Exposición a luz y aire")
+    st.write(
+        "- Sueño / descanso real\n- Calma / respiración\n- Apoyo social\n- Orden del entorno\n- Movimiento\n"
+        "- Nutrición simple\n- Tiempo sin pantallas\n- Límites / decir NO\n- Planificación mínima viable\n"
+        "- Exposición a luz y aire"
+    )
 
     recurso = st.text_input("¿Qué recurso has fortalecido hoy?")
     p = st.text_area("¿Por qué ese recurso era importante hoy?", height=80)
@@ -370,9 +366,9 @@ elif menu == "Semana 5: Gestión de Recursos":
         meta = {"por_que": p, "como": c, "despues": s}
         guardar_respuesta(5, f, "Gestión de recursos — Recurso fortalecido", recurso, meta=meta)
 
-# --- SEMANA 6 ---
-elif menu == "Semana 6: Detector de Sesgos":
-    st.header("⚖️ Semana 6: Detector de sesgos")
+# --- BLOQUE 6 ---
+elif menu == "Bloque 6: Detector de Sesgos":
+    st.header("⚖️ Bloque 6: Detector de sesgos")
     st.write("Sesgo = el piloto automático defendiendo su ruta como si fuera ley natural.")
 
     f = fecha_bloque(6)
@@ -383,9 +379,9 @@ elif menu == "Semana 6: Detector de Sesgos":
     if st.button("Guardar registro"):
         guardar_respuesta(6, f, f"Sesgos — {sesgo}", obs)
 
-# --- SEMANA 7 ---
-elif menu == "Semana 7: El Abogado del Diablo":
-    st.header("😈 Semana 7: El abogado del diablo")
+# --- BLOQUE 7 ---
+elif menu == "Bloque 7: El Abogado del Diablo":
+    st.header("😈 Bloque 7: El abogado del diablo")
     st.write("No se trata de autoatacarte. Se trata de pinchar el globo del relato cuando se vuelve dogma.")
 
     f = fecha_bloque(7)
@@ -407,9 +403,9 @@ elif menu == "Semana 7: El Abogado del Diablo":
     if st.button("Guardar registro"):
         guardar_respuesta(7, f, f"Abogado del diablo — Creencia: {creencia}", contra)
 
-# --- SEMANA 8 ---
-elif menu == "Semana 8: Antifragilidad":
-    st.header("💎 Semana 8: Antifragilidad")
+# --- BLOQUE 8 ---
+elif menu == "Bloque 8: Antifragilidad":
+    st.header("💎 Bloque 8: Antifragilidad")
     st.write("No romantizamos el caos. Lo usamos como fertilizante cuando ya ha ocurrido.")
 
     f = fecha_bloque(8)
@@ -427,23 +423,21 @@ elif menu == "Semana 8: Antifragilidad":
     if st.button("Guardar registro"):
         guardar_respuesta(8, f, f"Antifragilidad — Evento: {caos}", ventaja)
 
-# --- SEMANA 9 ---
-elif menu == "Semana 9: El Nuevo Rumbo":
-    st.header("🧭 Semana 9: Integración (una sola vez)")
+# --- BLOQUE 9 ---
+elif menu == "Bloque 9: El Nuevo Rumbo":
+    st.header("🧭 Bloque 9: Integración (una sola vez)")
     st.write("Lista de beneficios posibles tras el programa (compendio):")
-
-    st.write("\n".join([f"- {x}" for x in BENEFITS_WEEK9]))
+    st.write("\n".join([f"- {x}" for x in BENEFITS_BLOCK9]))
 
     reflexion = st.text_area(
         "Tu reflexión final (qué aprendiste, cómo avanzaste por bloques, qué te costó, qué gestionas mejor ahora):",
         height=180,
     )
     if st.button("Guardar reflexión final"):
-        # Semana 9 sin fecha (tal como pediste)
         guardar_respuesta(9, "", "Integración — Reflexión final", reflexion)
         st.balloons()
 
-# --- MIS RESPUESTAS (desglose por bloque -> fecha) ---
+# --- MIS RESPUESTAS ---
 elif menu == "📊 MIS RESPUESTAS":
     st.title("📊 Mis respuestas (por bloque → por fecha)")
     hist = st.session_state.historial
@@ -452,9 +446,9 @@ elif menu == "📊 MIS RESPUESTAS":
         st.write("Aún no tienes registros guardados.")
     else:
         df = pd.DataFrame(hist)
-        # Orden: semana, fecha, timestamp
+
+        # Orden por bloque, fecha y timestamp
         if "fecha" in df.columns:
-            # fecha dd/mm/yyyy -> yyyy-mm-dd para ordenar
             def to_sortable(d):
                 try:
                     return datetime.strptime(d, "%d/%m/%Y").strftime("%Y-%m-%d")
@@ -464,16 +458,14 @@ elif menu == "📊 MIS RESPUESTAS":
         else:
             df["fecha_sort"] = "9999-99-99"
 
-        df = df.sort_values(by=["semana", "fecha_sort", "timestamp"], ascending=[True, True, True])
+        df = df.sort_values(by=["bloque", "fecha_sort", "timestamp"], ascending=[True, True, True])
 
-        # UI: por semana
-        for semana in sorted(df["semana"].unique()):
-            st.subheader(f"Semana {semana}")
-            sdf = df[df["semana"] == semana].copy()
+        for bloque in sorted(df["bloque"].unique()):
+            st.subheader(f"Bloque {bloque}")
+            bdf = df[df["bloque"] == bloque].copy()
 
-            if semana == 9:
-                # Semana 9: mostrar todo (sin fecha)
-                for _, row in sdf.iterrows():
+            if bloque == 9:
+                for _, row in bdf.iterrows():
                     st.markdown(f"**{row.get('concepto','')}**")
                     st.write(row.get("respuesta", ""))
                     meta = row.get("meta", {})
@@ -482,10 +474,9 @@ elif menu == "📊 MIS RESPUESTAS":
                         st.json(meta)
                     st.divider()
             else:
-                # Agrupar por fecha
-                for fecha in sdf["fecha"].unique():
+                for fecha in bdf["fecha"].unique():
                     st.markdown(f"### {fecha}")
-                    fdf = sdf[sdf["fecha"] == fecha]
+                    fdf = bdf[bdf["fecha"] == fecha]
                     for _, row in fdf.iterrows():
                         st.markdown(f"**{row.get('concepto','')}**")
                         st.write(row.get("respuesta", ""))
@@ -495,7 +486,7 @@ elif menu == "📊 MIS RESPUESTAS":
                             st.json(meta)
                         st.divider()
 
-        with st.expander("Ver tabla completa (debug/descarga mental)"):
+        with st.expander("Ver tabla completa"):
             show = df.drop(columns=["fecha_sort"], errors="ignore")
             st.dataframe(show, use_container_width=True)
 
@@ -506,9 +497,11 @@ elif menu == "📊 MIS RESPUESTAS":
                 save_history([])
                 st.rerun()
         with col2:
-            # Export simple
             export_path = DATA_DIR / "history_export.csv"
             df_export = df.drop(columns=["fecha_sort"], errors="ignore")
             df_export.to_csv(export_path, index=False, encoding="utf-8")
-            st.download_button("Descargar CSV", data=export_path.read_bytes(), file_name="azimut_historial.csv")
-
+            st.download_button(
+                "Descargar CSV",
+                data=export_path.read_bytes(),
+                file_name="azimut_historial.csv",
+            )
