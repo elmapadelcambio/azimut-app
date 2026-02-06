@@ -1,25 +1,72 @@
 import streamlit as st
-from datetime import datetime
+from datetime import date
 
-st.set_page_config(page_title="Azimut - Tu Brújula Interior", page_icon="🧭", layout="wide")
+# --- CONFIGURACIÓN DE PÁGINA Y COLORES DE MARCA ---
+st.set_page_config(page_title="Azimut - El Mapa del Cambio", page_icon="🧭", layout="wide")
 
-# --- INICIALIZACIÓN DE MEMORIA (Para guardar respuestas) ---
+# Definición de colores
+AZUL_MARCA = "#00a7ff"
+AMARILLO_MARCA = "#f9e205"
+
+# --- ESTILOS CSS PERSONALIZADOS ---
+st.markdown(f"""
+    <style>
+    /* Títulos en Azul Marca */
+    h1, h2, h3, h4 {{
+        color: {AZUL_MARCA} !important;
+    }}
+    
+    /* Barra Lateral (Fondo y Texto) */
+    section[data-testid="stSidebar"] {{
+        background-color: {AZUL_MARCA};
+    }}
+    section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] span, section[data-testid="stSidebar"] label {{
+        color: white !important;
+    }}
+    
+    /* Botones: Azul con texto Amarillo */
+    div.stButton > button {{
+        background-color: {AZUL_MARCA} !important;
+        color: {AMARILLO_MARCA} !important;
+        border-radius: 10px;
+        border: none;
+        font-weight: bold;
+        font-size: 16px;
+    }}
+    div.stButton > button:hover {{
+        background-color: #008ecc !important; /* Un azul un poco más oscuro al pasar el ratón */
+        color: {AMARILLO_MARCA} !important;
+    }}
+    
+    /* Ajustes generales */
+    .stTextArea textarea {{ border-radius: 10px; }}
+    .stTextInput input {{ border-radius: 10px; }}
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- GESTIÓN DE ESTADO (MEMORIA) ---
 if 'historial' not in st.session_state:
     st.session_state.historial = []
 
-def guardar_respuesta(semana, etiqueta, valor):
-    fecha = datetime.now().strftime("%d/%m/%Y %H:%M")
-    st.session_state.historial.append({"Fecha": fecha, "Semana": semana, "Concepto": etiqueta, "Respuesta": valor})
-    st.toast(f"✅ Guardado en la Semana {semana}")
+def guardar_respuesta(fecha, semana, etiqueta, valor):
+    # Guardamos la fecha como string para que sea fácil de leer
+    fecha_str = fecha.strftime("%d/%m/%Y")
+    st.session_state.historial.append({
+        "Fecha": fecha_str,
+        "Semana": semana,
+        "Concepto": etiqueta,
+        "Respuesta": valor
+    })
+    st.toast(f"✅ Guardado en {semana} ({fecha_str})")
 
 # --- NAVEGACIÓN ---
-st.sidebar.title("🧭 Programa Azimut")
-menu = st.sidebar.radio("Ir a:", [
+st.sidebar.title("🧭 MAPA AZIMUT")
+menu = st.sidebar.radio("Navegación:", [
     "Inicio", 
     "Semana 1: Vía Negativa", 
-    "Semana 2: Ritmos Circadianos", 
+    "Semana 2: Ritmos y Entorno", 
     "Semana 3: Marcadores Somáticos", 
-    "Semana 4: Registro de Precisión", 
+    "Semana 4: Precisión Emocional", 
     "Semana 5: Gestión de Recursos",
     "Semana 6: Detector de Sesgos",
     "Semana 7: El Abogado del Diablo",
@@ -28,99 +75,267 @@ menu = st.sidebar.radio("Ir a:", [
     "📊 MIS RESPUESTAS"
 ])
 
-# --- SEMANA 1 ---
-if menu == "Semana 1: Vía Negativa":
-    st.header("📉 Semana 1: Vía Negativa")
-    st.write("Identifica conductas tóxicas o innecesarias para eliminarlas.")
-    dato = st.text_input("¿Qué vas a dejar de hacer hoy?")
-    if st.button("Guardar Compromiso"):
-        guardar_respuesta(1, "Resta del día", dato)
-
-# --- SEMANA 2 (10 Puntos de Higiene) ---
-elif menu == "Semana 2: Ritmos Circadianos":
-    st.header("☀️ Semana 2: Sincronización Biológica")
-    st.write("Marca los elementos de higiene biológica que has cumplido hoy:")
-    check_list = [
-        "Ver la luz del sol al despertar (10-20 min)", "Evitar luz azul 2h antes de dormir",
-        "Cenar al menos 3h antes de acostarse", "Exposición al frío/ducha fresca",
-        "Movimiento físico matutino", "Café solo después de 90 min despierto",
-        "Temperatura del dormitorio fresca", "Oscuridad total para dormir",
-        "Eliminar notificaciones del móvil por la noche", "Contacto con la naturaleza/tierra (Grounding)"
-    ]
-    seleccionados = []
-    for item in check_list:
-        if st.checkbox(item): seleccionados.append(item)
+# --- PÁGINA DE INICIO ---
+if menu == "Inicio":
+    st.title("Bienvenido a tu Mapa del Cambio")
+    st.write("""
+    Esta herramienta es el complemento práctico de tu programa **Azimut**.
     
-    if st.button("Registrar Día"):
-        guardar_respuesta(2, "Hitos cumplidos", ", ".join(seleccionados))
+    Úsala cada semana para registrar tus avances, detectar patrones y consolidar tu aprendizaje.
+    Tus respuestas se guardan en el apartado **'Mis Respuestas'** para que puedas ver tu evolución.
+    """)
+
+# --- SEMANA 1 ---
+elif menu == "Semana 1: Vía Negativa":
+    st.header("📉 Semana 1: Vía Negativa")
+    hoy = st.date_input("Fecha del registro:", date.today())
+    
+    st.write("Antes de sumar, toca restar. Identifica qué te sobra para ganar claridad.")
+    dato = st.text_input("¿Qué conducta, hábito o decisión vas a ELIMINAR hoy?")
+    
+    if st.button("Guardar Compromiso"):
+        guardar_respuesta(hoy, "Semana 1", "Resta del día", dato)
+
+# --- SEMANA 2 (Extraído de Newsletters) ---
+elif menu == "Semana 2: Ritmos y Entorno":
+    st.header("☀️ Semana 2: Regulación Biológica")
+    hoy = st.date_input("Fecha del registro:", date.today())
+    
+    st.write("Marca los puntos de higiene biológica que has cumplido hoy:")
+    
+    # Puntos extraídos de tus textos (Newsletters sobre sueño, luz, hábitos)
+    puntos_regulacion = [
+        "Exposición a luz solar directa al despertar",
+        "Oscuridad total en el dormitorio al dormir",
+        "Regularidad: me he acostado/levantado a la misma hora",
+        "He cenado al menos 3 horas antes de dormir",
+        "Movimiento físico diario (caminar, entrenar)",
+        "Contacto con la naturaleza (o exposición al frío)",
+        "He evitado luz azul/pantallas 2h antes de dormir",
+        "He comido 'comida real' (evitando ultraprocesados)",
+        "He limitado la cafeína después del mediodía",
+        "He priorizado el descanso sobre la productividad",
+        "He practicado algún momento de silencio/no hacer",
+        "He evitado noticias o estímulos estresantes por la noche"
+    ]
+    
+    seleccionados = []
+    for punto in puntos_regulacion:
+        if st.checkbox(punto):
+            seleccionados.append(punto)
+    
+    if st.button("Guardar Registro Diario"):
+        guardar_respuesta(hoy, "Semana 2", "Hitos biológicos", ", ".join(seleccionados))
 
 # --- SEMANA 3 ---
 elif menu == "Semana 3: Marcadores Somáticos":
-    st.header("🧘 Semana 3: Marcadores Somáticos")
+    st.header("🧘 Semana 3: El Cuerpo no Miente")
+    hoy = st.date_input("Fecha del registro:", date.today())
     
-    zona = st.selectbox("¿Dónde lo sientes?", ["Pecho", "Garganta", "Abdomen", "Mandíbula", "Hombros"])
-    tipo = st.text_input("Describe la sensación (calor, nudo, presión...):")
-    if st.button("Registrar Mapa"):
-        guardar_respuesta(3, f"Localización: {zona}", tipo)
+    st.write("¿Dónde sientes la emoción ahora mismo? Escanea tu cuerpo.")
+    
+    zonas_cuerpo = [
+        "Cabeza/Frente", "Garganta (nudo)", "Hombros/Cuello", 
+        "Pecho (presión/calor)", "Estómago/Abdomen", "Manos (sudor/frío)",
+        "Piernas/Pies (inquietud)", "Mandíbula (tensión)"
+    ]
+    zona = st.selectbox("Zona principal:", zonas_cuerpo)
+    sensacion = st.text_input("Describe la cualidad (pinchanzo, vacío, fuego, peso...):")
+    
+    if st.button("Guardar Registro"):
+        guardar_respuesta(hoy, "Semana 3", f"Marcador: {zona}", sensacion)
 
-# --- SEMANAS 4 A 7 (REGISTROS MULTI-USO) ---
-elif menu == "Semana 4: Registro de Precisión":
-    st.header("🏷️ Semana 4: Precisión Emocional (Registro Diario)")
-    emo = st.selectbox("Emoción detectada:", ["Inquietud", "Pavor", "Frustración", "Indignación", "Melancolía", "Paz", "Gratitud"])
-    if st.button("Añadir Registro"):
-        guardar_respuesta(4, "Etiquetado emocional", emo)
+# --- SEMANA 4 (Emociones de Azimut Completo) ---
+elif menu == "Semana 4: Precisión Emocional":
+    st.header("🏷️ Semana 4: Etiquetado de Precisión")
+    hoy = st.date_input("Fecha del registro:", date.today())
+    
+    st.write("No digas 'estoy mal'. Busca la palabra exacta.")
+    
+    # Lista extraída de tu documento Azimut
+    emociones_azimut = [
+        "Miedo / Ansiedad / Pánico",
+        "Ira / Frustración / Rabia",
+        "Tristeza / Melancolía / Desánimo",
+        "Alegría / Entusiasmo / Gratitud",
+        "Asco / Rechazo",
+        "Sorpresa / Desconcierto",
+        "Vergüenza / Culpa / Remordimiento",
+        "Amor / Afecto / Ternura",
+        "Desesperanza / Vacío"
+    ]
+    
+    emo = st.selectbox("¿Qué emoción predomina?", emociones_azimut)
+    
+    st.write("### Análisis de la emoción")
+    contexto = st.text_area("Rellena: ¿Por qué crees que es esta emoción? ¿Dónde estabas? ¿Qué pasó exactamente?")
+    
+    if st.button("Guardar Emoción"):
+        guardar_respuesta(hoy, "Semana 4", f"Emoción: {emo}", contexto)
 
+# --- SEMANA 5 ---
 elif menu == "Semana 5: Gestión de Recursos":
-    st.header("🧬 Semana 5: Fórmula de Resiliencia")
-    recurso = st.text_input("¿Qué recurso (sueño, calma, apoyo) has fortalecido hoy?")
+    st.header("🧬 Semana 5: Fórmula de la Resiliencia")
+    hoy = st.date_input("Fecha del registro:", date.today())
+    
+    st.latex(r''' Resiliencia = \frac{Reto}{Recursos} ''')
+    
+    st.write("Para equilibrar la balanza, sube tus recursos.")
+    recurso = st.selectbox("¿Qué recurso has activado hoy?", [
+        "Sueño profundo", "Nutrición densa", "Movimiento/Deporte", 
+        "Conexión social/Tribu", "Silencio/Meditación", "Naturaleza",
+        "Juego/Hobbies", "Terapia/Escritura", "Tiempo libre"
+    ])
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        pq = st.text_input("¿Por qué elegiste este?")
+    with col2:
+        como = st.text_input("¿Cómo lo hiciste?")
+    with col3:
+        sentir = st.text_input("¿Cómo te sientes ahora?")
+        
+    resumen = f"Por qué: {pq} | Cómo: {como} | Resultado: {sentir}"
+    
     if st.button("Añadir Recurso"):
-        guardar_respuesta(5, "Recurso fortalecido", recurso)
+        guardar_respuesta(hoy, "Semana 5", f"Recurso: {recurso}", resumen)
 
+# --- SEMANA 6 (Sesgos de Newsletters) ---
 elif menu == "Semana 6: Detector de Sesgos":
-    st.header("⚖️ Semana 6: Identificar Trampas")
-    sesgo = st.selectbox("Sesgo identificado hoy:", ["Confirmación", "Negatividad", "Anclaje", "Efecto Halo"])
-    obs = st.text_area("Contexto de la situación:")
+    st.header("⚖️ Semana 6: Trampas Mentales")
+    hoy = st.date_input("Fecha del registro:", date.today())
+    
+    st.write("Identifica qué filtro está distorsionando tu realidad hoy.")
+    
+    # Sesgos extraídos de tus textos
+    sesgos = [
+        "Sesgo de Confirmación (solo veo lo que me da la razón)",
+        "Aversión a la Pérdida (miedo a soltar lo conocido)",
+        "Falacia del Coste Hundido (seguir por no perder lo invertido)",
+        "Efecto Zeigarnik (mi mente no suelta lo inacabado)",
+        "Indefensión Aprendida (creer que no puedo hacer nada)",
+        "Efecto Dunning-Kruger (creer que sé más de lo que sé)",
+        "Sesgo de Negatividad (foco en lo malo)",
+        "Ilusión de Control (creer que controlo el azar)",
+        "Adaptación Hedónica (acostumbrarme rápido a lo bueno)",
+        "Efecto Manada (hacer lo que hacen todos)"
+    ]
+    
+    sesgo_detectado = st.selectbox("Sesgo identificado:", sesgos)
+    situacion = st.text_area("Describe la situación donde aplicaste este sesgo:")
+    
     if st.button("Registrar Sesgo"):
-        guardar_respuesta(6, f"Sesgo: {sesgo}", obs)
+        guardar_respuesta(hoy, "Semana 6", sesgo_detectado, situacion)
 
+# --- SEMANA 7 ---
 elif menu == "Semana 7: El Abogado del Diablo":
     st.header("😈 Semana 7: Desmontando Narrativas")
-    creencia = st.text_input("Creencia limitante detectada:")
-    contra = st.text_area("Evidencia real que la contradice:")
-    if st.button("Registrar Desafío"):
-        guardar_respuesta(7, f"Creencia: {creencia}", contra)
+    hoy = st.date_input("Fecha del registro:", date.today())
+    
+    st.write("Escribe una creencia limitante que te esté frenando.")
+    creencia = st.selectbox("Ejemplos comunes (o escribe la tuya abajo):", [
+        "Escribe la tuya propia...",
+        "No soy suficiente",
+        "Es demasiado tarde para cambiar",
+        "Si fallo, soy un fracaso",
+        "Mostrar emociones es de débiles",
+        "Necesito la aprobación de los demás para estar bien",
+        "Yo soy así, no puedo cambiar mi carácter"
+    ])
+    
+    if creencia == "Escribe la tuya propia...":
+        creencia_real = st.text_input("Tu creencia limitante:")
+    else:
+        creencia_real = creencia
+        
+    st.info("💡 PISTA: Piensa en un momento concreto donde esta creencia NO se cumplió. Busca una evidencia real, por pequeña que sea, que demuestre que no es una verdad absoluta.")
+    contra = st.text_area("El Abogado del Diablo responde (Evidencia en contra):")
+    
+    if st.button("Desmontar Creencia"):
+        guardar_respuesta(hoy, "Semana 7", f"Creencia: {creencia_real}", f"Desmontada con: {contra}")
 
 # --- SEMANA 8 ---
 elif menu == "Semana 8: Antifragilidad":
     st.header("💎 Semana 8: Cosechar del Caos")
-    caos = st.text_input("¿Qué imprevisto ha ocurrido?")
-    ventaja = st.text_input("¿Qué beneficio o aprendizaje has extraído?")
-    if st.button("Registrar Evolución"):
-        guardar_respuesta(8, f"Evento: {caos}", ventaja)
-
-# --- SEMANA 9 ---
-elif menu == "Semana 9: El Nuevo Rumbo":
-    st.header("🧭 Semana 9: Integración")
-    st.write("### Logros alcanzados en este programa:")
-    logros = [
-        "Mayor consciencia de mi cuerpo", "Capacidad de frenar impulsos",
-        "Mejor calidad de descanso", "Claridad para decir NO (Vía Negativa)",
-        "Detección de trampas mentales", "Menos reactividad emocional"
-    ]
-    for l in logros: st.write(f"✅ {l}")
+    hoy = st.date_input("Fecha del registro:", date.today())
     
-    reflexion = st.text_area("Tu reflexión final:")
-    if st.button("Cerrar Mapa"):
-        guardar_respuesta(9, "Reflexión Final", reflexion)
-        st.balloons()
+    caos = st.text_input("¿Qué imprevisto, error o dificultad ha ocurrido?")
+    
+    st.info("💡 PISTA: Si tuvieras que sacar una ventaja obligatoria de esto, ¿cuál sería? ¿Qué has aprendido que no sabías? ¿En qué te ha hecho más fuerte?")
+    ventaja = st.text_area("¿Qué beneficio o aprendizaje extraes de esto?")
+    
+    if st.button("Registrar Antifragilidad"):
+        guardar_respuesta(hoy, "Semana 8", f"Evento: {caos}", f"Beneficio: {ventaja}")
 
-# --- APARTADO: MIS RESPUESTAS ---
+# --- SEMANA 9 (Cierre y Reflexión Final) ---
+elif menu == "Semana 9: El Nuevo Rumbo":
+    st.header("🧭 Semana 9: Integración y Azimut")
+    
+    st.write("### Beneficios alcanzados (Marca de verificación interna):")
+    
+    # Beneficios extraídos de Azimut
+    beneficios = [
+        "Mayor consciencia corporal e intercepción",
+        "Capacidad de responder en lugar de reaccionar (pausa)",
+        "Vocabulario emocional más amplio y preciso",
+        "Comprensión de mis mecanismos de defensa",
+        "Aceptación de la incertidumbre como parte del proceso",
+        "Conexión real entre cuerpo y mente",
+        "Mayor autocompasión y menos juicio interno",
+        "Capacidad para dejar de huir del malestar"
+    ]
+    
+    for b in beneficios:
+        st.markdown(f"- {b}")
+        
+    st.markdown("---")
+    st.write("### Reflexión Final del Programa")
+    st.write("Tómate tu tiempo. Sin fecha. Esto es el poso que queda.")
+    
+    reflexion = st.text_area(
+        "¿Qué has aprendido? ¿Cómo has avanzado en cada bloque? ¿Qué te ha costado más y aun así sientes que ahora gestionas mejor?",
+        height=200
+    )
+    
+    if st.button("Cerrar Mapa"):
+        # Guardamos sin fecha específica o con la de hoy, pero marcada como FINAL
+        guardar_respuesta(date.today(), "Semana 9 - FINAL", "Reflexión de Cierre", reflexion)
+        st.balloons()
+        st.success("¡Enhorabuena! Has completado el recorrido. Tu mapa ahora es tuyo.")
+
+# --- APARTADO: MIS RESPUESTAS (Ordenado y Agrupado) ---
 elif menu == "📊 MIS RESPUESTAS":
-    st.title("📊 Tu Historial de Progreso")
+    st.title("📊 Tu Bitácora de Viaje")
+    
     if not st.session_state.historial:
-        st.write("Aún no tienes registros guardados.")
+        st.info("Aún no hay registros. Comienza a trabajar en las semanas.")
     else:
-        st.table(st.session_state.historial)
-        if st.button("Limpiar todo el historial"):
-            st.session_state.historial = []
-            st.rerun()
+        # Agrupar por Fecha y luego por Semana
+        # Convertimos la lista en un DataFrame para facilitar, o lo hacemos manual
+        # Hacemos manual para no depender de pandas si no se quiere
+        
+        # Ordenar historial por fecha (asumiendo formato dd/mm/yyyy)
+        historial_ordenado = sorted(
+            st.session_state.historial, 
+            key=lambda x: datetime.strptime(x['Fecha'], "%d/%m/%Y") if 'Fecha' in x else datetime.min, 
+            reverse=True
+        )
+        
+        from itertools import groupby
+        from datetime import datetime
+
+        # Agrupar por Fecha
+        for fecha, items_fecha in groupby(historial_ordenado, key=lambda x: x['Fecha']):
+            st.markdown(f"### 📅 {fecha}")
+            lista_items = list(items_fecha)
+            
+            # Dentro de la fecha, agrupar por Semana
+            # Ordenamos por semana primero para que groupby funcione
+            lista_items.sort(key=lambda x: x['Semana'])
+            
+            for semana, items_semana in groupby(lista_items, key=lambda x: x['Semana']):
+                with st.expander(f"📂 {semana}", expanded=True):
+                    for item in items_semana:
+                        st.markdown(f"**{item['Concepto']}:**")
+                        st.write(item['Respuesta'])
+                        st.markdown("---")
