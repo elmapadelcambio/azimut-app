@@ -286,4 +286,124 @@ def screen_dashboard(df_all: pd.DataFrame, start: date, end: date):
         kpi("Streak actual", f"{streak} días")
     with c4:
         dom = "-"
-        if not df.empty and
+        if not df.empty and df["emotion"].notna().any():
+            dom = df["emotion"].dropna().astype(str).value_counts().idxmax()
+        kpi("Emoción dominante", dom)
+
+    # Charts
+    left, right = st.columns([1.2, 1.0])
+
+    with left:
+        card("Distribución de emociones", "Frecuencia en el rango seleccionado.", badge="INSIGHTS")
+        if df.empty or df["emotion"].dropna().empty:
+            st.info("Aún no hay emociones registradas en este rango.")
+        else:
+            emo = df["emotion"].dropna().astype(str).value_counts().reset_index()
+            emo.columns = ["emotion", "count"]
+            fig = px.bar(emo, x="emotion", y="count")
+            fig.update_layout(height=360, margin=dict(l=10, r=10, t=10, b=10))
+            st.plotly_chart(fig, use_container_width=True)
+
+        card("Actividad por día", "Cuántos registros haces y cuándo.", badge="TREND")
+        if df.empty:
+            st.info("Sin actividad en el rango.")
+        else:
+            daily = df.groupby("day").size().reset_index(name="count")
+            fig2 = px.line(daily, x="day", y="count", markers=True)
+            fig2.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10))
+            st.plotly_chart(fig2, use_container_width=True)
+
+    with right:
+        card("Recomendaciones", "Sugerencias automáticas basadas en patrones simples.", badge="SYSTEM", badge_yellow=True)
+        for r in recommendations(df):
+            st.markdown(f"- {r}")
+
+        card("Últimas respuestas", "Vista rápida de lo más reciente.", badge="RECENT")
+        if df_all.empty:
+            st.info("Aún no hay registros.")
+        else:
+            st.dataframe(df_all.head(8)[["ts", "block", "emotion", "what"]], use_container_width=True)
+
+
+def screen_block4_form():
+    st.markdown("## Bloque 4 · Emotional Precision")
+    st.markdown('<div class="muted">Refina tu estado actual con precisión y claridad.</div>', unsafe_allow_html=True)
+
+    with st.form("block4"):
+        emotion = st.selectbox(
+            "Emoción detectada",
+            ["", "Calm", "Motivated", "Anxious", "Angry", "Sad", "Overwhelmed", "Fear"],
+        )
+        why = st.text_area("¿Por qué?", placeholder="Describe la causa raíz (sin novela, con bisturí).")
+        where = st.text_area("¿Dónde?", placeholder="Localización corporal y/o contexto (pecho, garganta, trabajo, casa…).")
+        what = st.text_area("¿Qué pasó?", placeholder="Evento disparador: qué ocurrió, con qué persona, en qué momento.")
+
+        submitted = st.form_submit_button("Guardar registro")
+        if submitted:
+            now = datetime.now()
+            rec = {
+                "ts": now.isoformat(timespec="seconds"),
+                "day": now.date().isoformat(),
+                "block": "Bloque 4",
+                "emotion": emotion if emotion else None,
+                "why": why.strip() if why else None,
+                "where": where.strip() if where else None,
+                "what": what.strip() if what else None,
+            }
+            insert_record(rec)
+            st.success("Guardado. La consistencia es el músculo invisible.")
+
+
+def screen_responses(df_all: pd.DataFrame, start: date, end: date):
+    st.markdown("## Mis respuestas")
+    st.markdown('<div class="muted">Tus registros guardados. Filtra por fechas para ver patrones.</div>', unsafe_allow_html=True)
+
+    df = filter_by_range(df_all, start, end)
+    if df.empty:
+        st.info("No hay registros en este rango.")
+        return
+
+    st.dataframe(
+        df[["ts", "day", "block", "emotion", "why", "where_", "what"]],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
+# =========================
+# Sidebar: navegación + filtros tiempo
+# =========================
+df_all = load_records()
+
+with st.sidebar:
+    st.markdown('<div class="sidebar-title">Bloques</div>', unsafe_allow_html=True)
+
+    page = st.radio(
+        "Navegación",
+        ["Dashboard", "Bloque 4", "Mis respuestas"],
+        label_visibility="collapsed",
+    )
+
+    st.divider()
+    st.markdown('<div class="sidebar-title">Filtro de tiempo</div>', unsafe_allow_html=True)
+
+    # Default: últimos 7 días
+    today = date.today()
+    default_start = today - timedelta(days=6)
+
+    start = st.date_input("Desde", value=default_start)
+    end = st.date_input("Hasta", value=today)
+
+    if start > end:
+        st.error("Rango inválido: 'Desde' no puede ser posterior a 'Hasta'.")
+
+
+# =========================
+# Router
+# =========================
+if page == "Dashboard":
+    screen_dashboard(df_all, start, end)
+elif page == "Bloque 4":
+    screen_block4_form()
+else:
+    screen_responses(df_all, start, end)
