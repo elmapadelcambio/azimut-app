@@ -1,6 +1,6 @@
 import json
 import re
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -32,6 +32,41 @@ NEWSLETTERS_FILE = Path("AA-TODAS las newsletters publicadas .txt")
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
 HISTORY_FILE = DATA_DIR / "history.json"
+PROFILE_FILE = DATA_DIR / "profile.json"
+
+# =========================================================
+# PERFIL / ONBOARDING
+# =========================================================
+DEFAULT_PROFILE = {
+    "onboarded": False,
+    "nombre": "",
+    "fecha_inicio": date.today().strftime("%Y-%m-%d"),
+    "objetivo_dias_semana": 5,  # 1–7
+    "objetivo_bloques_dia": 1,  # 1–3
+    "modo": "Suave",  # Suave / Estándar / Intensivo
+}
+
+
+def load_profile():
+    if PROFILE_FILE.exists():
+        try:
+            p = json.loads(PROFILE_FILE.read_text(encoding="utf-8"))
+            if not isinstance(p, dict):
+                return DEFAULT_PROFILE.copy()
+            out = DEFAULT_PROFILE.copy()
+            out.update(p)
+            return out
+        except Exception:
+            return DEFAULT_PROFILE.copy()
+    return DEFAULT_PROFILE.copy()
+
+
+def save_profile(p: dict):
+    PROFILE_FILE.write_text(json.dumps(p, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+if "perfil" not in st.session_state:
+    st.session_state.perfil = load_profile()
 
 # =========================================================
 # HISTORIAL
@@ -124,26 +159,6 @@ def extract_emotions_from_azimut(text: str) -> list[str]:
 EMOTIONS = extract_emotions_from_azimut(AZIMUT_TEXT)
 
 
-def circadian_checklist_from_corpus(_azimut: str, _news: str) -> list[str]:
-    return [
-        "Me acuesto y me levanto a horas consistentes (también fines de semana)",
-        "Dormitorio fresco, oscuro y silencioso",
-        "Evito pantallas/luz intensa antes de dormir",
-        "Rutina de aterrizaje nocturno (bajar estímulos 30–60 min)",
-        "Luz natural al inicio del día (salir fuera aunque esté nublado)",
-        "Movimiento temprano (caminar/estirar/actividad suave)",
-        "Café cuando ya he arrancado (no como primer disparo del día)",
-        "Ceno con margen antes de dormir",
-        "Luz brillante solo de día; por la noche, luz baja",
-        "Si hago siesta, que sea corta y no tarde",
-        "Contacto con el exterior (aire/naturaleza) como ancla diaria",
-        "Coherencia entre luz, comida y actividad (sin vivir en husos horarios)",
-    ][:12]
-
-
-CHECKLIST_BLOCK2 = circadian_checklist_from_corpus(AZIMUT_TEXT, NEWS_TEXT)
-
-
 def biases_from_corpus(_news: str, _azimut: str) -> list[str]:
     return unique_preserve(
         [
@@ -168,43 +183,6 @@ def biases_from_corpus(_news: str, _azimut: str) -> list[str]:
 
 
 BIASES = biases_from_corpus(NEWS_TEXT, AZIMUT_TEXT)
-
-
-def limiting_beliefs_examples(_news: str, _azimut: str) -> list[str]:
-    return unique_preserve(
-        [
-            "“No puedo.”",
-            "“Debo tener control sobre todo para sentirme segura.”",
-            "“Tengo que ser bueno.”",
-            "“No debo fallar.”",
-            "“No debo decepcionar.”",
-            "“He fallado, por tanto, no valgo.”",
-            "“Es lo que hay; no hay opciones.”",
-        ]
-    )
-
-
-BELIEF_EXAMPLES = limiting_beliefs_examples(NEWS_TEXT, AZIMUT_TEXT)
-
-
-def azimut_benefits(_news: str, _azimut: str) -> list[str]:
-    return unique_preserve(
-        [
-            "Entender tus emociones (sin juzgarte)",
-            "Regular tu respuesta al estrés",
-            "Cultivar atención, presencia y calma",
-            "Tomar decisiones con más claridad",
-            "Reconocer patrones y automatismos",
-            "Mejorar tu tolerancia a la incertidumbre",
-            "Aumentar tu capacidad de parar antes de reaccionar",
-            "Reencuadrar narrativas que te secuestran",
-            "Construir consistencia (con estructura)",
-            "Identificar sesgos y no enamorarte de tu primer relato",
-        ]
-    )
-
-
-BENEFITS_BLOCK9 = azimut_benefits(NEWS_TEXT, AZIMUT_TEXT)
 
 # =========================================================
 # BRAND / THEME (solo modo claro)
@@ -300,10 +278,6 @@ def apply_theme():
             margin-top: 10px;
           }}
 
-          /* MÁS AIRE en el patrón: subtítulo -> frase en negrita -> pregunta */
-          h3 + div p {{
-            margin-top: 14px !important;
-          }}
           .stMarkdown p {{
             margin-bottom: 12px !important;
             line-height: 1.45 !important;
@@ -353,7 +327,7 @@ def apply_theme():
             color: {text} !important;
           }}
 
-          /* Multiselect tags (Bloques): fondo azul */
+          /* Multiselect tags: fondo azul */
           .stMultiSelect span[data-baseweb="tag"] {{
             background-color: {BRAND_BLUE} !important;
             color: #ffffff !important;
@@ -392,54 +366,86 @@ def to_sortable_date(d):
         return None
 
 
-def dominant_emotion_and_context(df: pd.DataFrame):
-    d4 = df[df["bloque"] == 4].copy()
-    emotion = None
-    context = None
-    if len(d4):
-        emo = d4["respuesta"].fillna("").astype(str).str.strip()
-        emo = emo[emo != ""]
-        if len(emo):
-            emotion = emo.value_counts().index[0]
-
-        def meta_where(x):
-            if isinstance(x, dict):
-                return str(x.get("donde", "")).strip()
-            return ""
-
-        where = d4["meta"].apply(meta_where)
-        where = where[where != ""]
-        if len(where):
-            context = where.value_counts().index[0]
-    return emotion, context
+def safe_parse_ymd(s: str) -> date:
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").date()
+    except Exception:
+        return date.today()
 
 
-def recommendations(dominant_emotion: str | None):
-    if not dominant_emotion:
-        return [
-            "Registra 2–3 días en el Bloque 4 para que aparezca señal.",
-            "Si hoy estás dispersa: Bloque 2 (ritmo) suele ser la palanca de bajo coste.",
-        ]
-    e = dominant_emotion.lower()
-    if any(k in e for k in ["ans", "mied", "pavor", "inquiet", "nerv", "estrés", "estres"]):
-        return [
-            "Señal de activación alta: hoy prioriza Bloque 2 (anclas circadianas).",
-            "Luego Bloque 3: localiza el marcador corporal antes de interpretar.",
-        ]
-    if any(k in e for k in ["trist", "melanc", "vacío", "vacio"]):
-        return [
-            "Si baja la energía: Bloque 5 (recurso) en formato mínimo viable.",
-            "Bloque 1: elimina una fricción concreta hoy.",
-        ]
-    if any(k in e for k in ["ira", "rab", "indign", "enfado"]):
-        return [
-            "Si hay fricción social: Bloque 7 (abogado del diablo) para desmontar el relato dominante.",
-            "Bloque 3: identifica dónde se carga el cuerpo antes de responder.",
-        ]
-    return [
-        "Hoy: Bloque 4 + Bloque 5 (claridad + recurso).",
-        "Si detectas automatismos: Bloque 6 como lupa.",
-    ]
+def compute_adherence_metrics(df: pd.DataFrame, profile: dict):
+    # df debe tener ts_dt y ts_date calculados
+    start = safe_parse_ymd(str(profile.get("fecha_inicio", date.today().strftime("%Y-%m-%d"))))
+    today = date.today()
+    if start > today:
+        start = today
+
+    days_total = (today - start).days + 1
+    if days_total < 1:
+        days_total = 1
+
+    if df.empty or "ts_date" not in df.columns:
+        active_days = 0
+        active_rate = 0.0
+        avg_per_active = 0.0
+        avg_per_total = 0.0
+        streak = 0
+        best_streak = 0
+        return {
+            "start": start,
+            "today": today,
+            "days_total": days_total,
+            "active_days": active_days,
+            "active_rate": active_rate,
+            "avg_per_active": avg_per_active,
+            "avg_per_total": avg_per_total,
+            "streak": streak,
+            "best_streak": best_streak,
+        }
+
+    # Filtra desde fecha inicio
+    df2 = df[df["ts_date"].notna()].copy()
+    df2 = df2[df2["ts_date"] >= start]
+
+    active_dates = sorted(set(df2["ts_date"].tolist()))
+    active_days = len(active_dates)
+    active_rate = active_days / days_total if days_total else 0.0
+
+    total_regs = len(df2)
+    avg_per_active = (total_regs / active_days) if active_days else 0.0
+    avg_per_total = total_regs / days_total if days_total else 0.0
+
+    # Streak actual: días consecutivos hasta hoy
+    active_set = set(active_dates)
+    streak = 0
+    d = today
+    while d >= start and d in active_set:
+        streak += 1
+        d = d - timedelta(days=1)
+
+    # Best streak (máxima racha histórica)
+    best_streak = 0
+    cur = 0
+    d = start
+    while d <= today:
+        if d in active_set:
+            cur += 1
+            best_streak = max(best_streak, cur)
+        else:
+            cur = 0
+        d = d + timedelta(days=1)
+
+    return {
+        "start": start,
+        "today": today,
+        "days_total": days_total,
+        "active_days": active_days,
+        "active_rate": active_rate,
+        "avg_per_active": avg_per_active,
+        "avg_per_total": avg_per_total,
+        "streak": streak,
+        "best_streak": best_streak,
+    }
 
 
 # =========================================================
@@ -468,10 +474,10 @@ st.sidebar.markdown('<div class="az-sidebar-title">Azimut</div>', unsafe_allow_h
 MENU_ITEMS = [
     "INICIO",
     "Bloque 1: Vía Negativa",
-    "Bloque 2: Ritmos Circadianos",
-    "Bloque 3: Marcadores Somáticos",
-    "Bloque 4: Registro de Precisión",
-    "Bloque 5: Gestión de Recursos",
+    "Bloque 2: Aproximación/Retirada",
+    "Bloque 3: Arquitectura Emocional",
+    "Bloque 4: Raíz y Rama",
+    "Bloque 5: Precisión Emocional",
     "Bloque 6: Detector de Sesgos",
     "Bloque 7: El Abogado del Diablo",
     "Bloque 8: Antifragilidad",
@@ -481,7 +487,7 @@ MENU_ITEMS = [
 menu = st.sidebar.radio("Ir a:", MENU_ITEMS, key="nav_menu")
 
 # =========================================================
-# UI helpers: cards + goto
+# UI helpers: cards + fecha
 # =========================================================
 def card(title: str, subtitle: str | None = None, enunciado: str | None = None):
     st.markdown('<div class="az-card">', unsafe_allow_html=True)
@@ -507,197 +513,284 @@ def fecha_bloque(bloque: int):
 
 
 # =========================================================
+# ONBOARDING (producto)
+# =========================================================
+def onboarding_panel():
+    p = st.session_state.perfil
+
+    card(
+        "Onboarding",
+        "Configura tu brújula: esto define tu objetivo y activa el tablero de progreso.",
+        enunciado="Tres minutos ahora = semanas de adherencia después.",
+    )
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        nombre = st.text_input("Nombre (opcional)", value=str(p.get("nombre", "")))
+        fecha_inicio = st.date_input(
+            "Fecha de inicio del programa",
+            value=safe_parse_ymd(str(p.get("fecha_inicio", date.today().strftime("%Y-%m-%d")))),
+        )
+        modo = st.selectbox("Modo", ["Suave", "Estándar", "Intensivo"], index=["Suave", "Estándar", "Intensivo"].index(p.get("modo", "Suave")))
+    with col2:
+        objetivo_dias = st.slider("Objetivo: días/semana", min_value=1, max_value=7, value=int(p.get("objetivo_dias_semana", 5)))
+        objetivo_bloques = st.slider("Objetivo: bloques/día", min_value=1, max_value=3, value=int(p.get("objetivo_bloques_dia", 1)))
+        st.markdown("**Regla práctica**")
+        st.write("- Suave: 1 bloque/día, 3–4 días/semana\n- Estándar: 1–2 bloques/día, 5 días/semana\n- Intensivo: 2–3 bloques/día, 6–7 días/semana")
+
+    card_end()
+
+    if st.button("Guardar onboarding"):
+        p["nombre"] = nombre.strip()
+        p["fecha_inicio"] = fecha_inicio.strftime("%Y-%m-%d")
+        p["objetivo_dias_semana"] = int(objetivo_dias)
+        p["objetivo_bloques_dia"] = int(objetivo_bloques)
+        p["modo"] = modo
+        p["onboarded"] = True
+        st.session_state.perfil = p
+        save_profile(p)
+        st.toast("✅ Onboarding guardado")
+        st.rerun()
+
+
+def progress_dashboard(df_all: pd.DataFrame):
+    p = st.session_state.perfil
+    card("Progreso", "Tablero operativo: constancia > intensidad.", enunciado="Métricas frías para un sistema emocional más templado.")
+    # Preparación df
+    df = df_all.copy()
+    if df.empty:
+        st.write("Aún no hay registros. Empieza con Bloque 1 y deja que el sistema aprenda tu patrón.")
+        card_end()
+        return
+
+    df["ts_dt"] = pd.to_datetime(df["timestamp"], errors="coerce")
+    df["ts_date"] = df["ts_dt"].dt.date
+    metrics = compute_adherence_metrics(df, p)
+
+    # KPIs
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("Racha actual", f"{metrics['streak']} día(s)")
+    with c2:
+        st.metric("Mejor racha", f"{metrics['best_streak']} día(s)")
+    with c3:
+        st.metric("Días activos", f"{metrics['active_days']} / {metrics['days_total']}")
+    with c4:
+        st.metric("Constancia", f"{metrics['active_rate']*100:.0f}%")
+
+    st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
+
+    # Objetivo semanal aproximado: constancia vs objetivo_dias_semana
+    objetivo_dias = int(p.get("objetivo_dias_semana", 5))
+    # Ventana últimos 7 días
+    last7_start = date.today() - timedelta(days=6)
+    df7 = df[df["ts_date"].notna() & (df["ts_date"] >= last7_start)].copy()
+    active7 = len(set(df7["ts_date"].tolist()))
+    st.write(f"**Últimos 7 días:** {active7} día(s) con registro (objetivo: {objetivo_dias}/7).")
+    st.progress(min(1.0, active7 / 7.0))
+
+    # Progreso por bloque (conteo simple)
+    st.markdown("#### Progreso por bloque")
+    counts = df.groupby("bloque").size().reindex(range(1, 10), fill_value=0).reset_index()
+    counts.columns = ["Bloque", "Registros"]
+    if PLOTLY_AVAILABLE:
+        fig = px.bar(counts, x="Bloque", y="Registros", title="Registros por bloque")
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.bar_chart(counts.set_index("Bloque"))
+
+    card_end()
+
+
+# =========================================================
 # PANTALLAS
 # =========================================================
 df_all = history_df()
 
+# ---------- INICIO ----------
 if menu == "INICIO":
     card("Azimut", "Cuaderno de navegación: no para pensar más, sino para pensar mejor.")
+    p = st.session_state.perfil
+    nombre = p.get("nombre", "").strip()
+    saludo = f"Hola, {nombre}." if nombre else "Hola."
     st.write(
-        "La idea es sencilla y obstinada: **cada día** completas el bloque (o bloques) que te toquen, "
-        "sin necesidad de hacerlo perfecto. Al principio costará —como afinar el oído en una sala con eco—, "
-        "pero con los días notarás algo muy concreto: **identificarás antes lo que te pasa**, "
-        "y tus explicaciones tendrán más precisión y menos niebla.\n\n"
-        "Esa mejora no es un sentimiento: es **evidencia**. Se ve en el detalle, en la claridad, "
-        "en la rapidez con la que nombras una emoción, detectas un sesgo o localizas el punto exacto "
-        "del cuerpo donde se tensó el sistema.\n\n"
-        "Tus respuestas se guardan en **“📊 MIS RESPUESTAS”**. Ahí podrás ver el historial por bloques y por fecha, "
-        "identificar **qué patrones se repiten** y observar el avance en otros puntos.\n\n"
-        "Deja **“Bloque 9: El Nuevo Rumbo”** para el final: es el cierre del programa, cuando hayas completado el recorrido."
+        f"{saludo} Aquí no buscamos épica: buscamos **fidelidad al proceso**.\n\n"
+        "Azimut funciona como un **entrenamiento de precisión**: cada bloque es una coordenada. "
+        "Lo rellenás breve, lo guardas, y con el tiempo aparece lo valioso: **patrones**.\n\n"
+        "Tus respuestas se guardan en **“📊 MIS RESPUESTAS”**. Ahí puedes filtrar por fechas, "
+        "ver tu historial por bloques, y observar constancia y distribución.\n\n"
+        "Regla de oro: empieza pequeño. La adherencia es un animal tímido."
     )
     card_end()
 
+    st.markdown("---")
+
+    # Onboarding si no está hecho
+    if not st.session_state.perfil.get("onboarded", False):
+        onboarding_panel()
+    else:
+        progress_dashboard(df_all)
+
+        with st.expander("Ajustes de onboarding"):
+            onboarding_panel()
+
+# ---------- BLOQUE 1 ----------
 elif menu == "Bloque 1: Vía Negativa":
-    st.header("Bloque 1: Vía Negativa")
-    st.write("Identifica lo que resta. Hoy no añadimos herramientas: quitamos lastre.")
+    st.header("Bloque 1: Vía negativa")
+    st.write("Antes de añadir soluciones, quita lo que empeora la situación.")
     f = fecha_bloque(1)
 
-    card("Registro del día", enunciado="Una frase. Sin épica. Sin negociación.")
-    st.write("¿Qué vas a dejar de hacer hoy?")
-    st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
-    dato = st.text_input("", label_visibility="collapsed")
+    card("Registro del día", subtitle="Menos, pero con impacto.", enunciado="Una frase clara. Sin negociación.")
+    dato = st.text_input("¿Qué vas a dejar de hacer hoy?", label_visibility="visible")
     card_end()
 
     if st.button("Guardar compromiso"):
         guardar_respuesta(1, f, "Vía negativa — Resta del día", dato)
 
-elif menu == "Bloque 2: Ritmos Circadianos":
-    st.header("Bloque 2: Ritmos Circadianos")
-    st.write("Marca los puntos que has cumplido hoy (10–12 anclas diarias).")
+# ---------- BLOQUE 2 ----------
+elif menu == "Bloque 2: Aproximación/Retirada":
+    st.header("Bloque 2: Aproximación o retirada")
+    st.write("Tu cerebro decide primero si acercarse o alejarse.")
     f = fecha_bloque(2)
 
-    card("Checklist", enunciado="Marca lo cumplido. La repetición vence a la motivación.")
-    seleccionados = []
-    for i, item in enumerate(CHECKLIST_BLOCK2):
-        if st.checkbox(item, key=f"b2_{i}"):
-            seleccionados.append(item)
+    card("Registro", subtitle="Dirección conductual del día.", enunciado="Detecta la dirección antes de justificarla.")
+    situacion = st.text_input("Situación relevante del día")
+    direccion = st.selectbox("¿Te acercaste o te alejaste?", ["Aproximación", "Retirada"])
+    utilidad = st.text_area("¿Fue útil esa respuesta? (por qué sí / por qué no)", height=90)
     card_end()
 
     if st.button("Guardar registro"):
-        guardar_respuesta(2, f, "Ritmos circadianos — Hitos", ", ".join(seleccionados))
+        meta = {"situacion": situacion, "utilidad": utilidad}
+        guardar_respuesta(2, f, f"Dirección conductual — {direccion}", direccion, meta=meta)
 
-elif menu == "Bloque 3: Marcadores Somáticos":
-    st.header("Bloque 3: Marcadores somáticos")
-    st.write("El cuerpo habla en dialectos: tensión, nudo, calor, vacío. Vamos a transcribirlo.")
+# ---------- BLOQUE 3 ----------
+elif menu == "Bloque 3: Arquitectura Emocional":
+    st.header("Bloque 3: Arquitectura emocional")
+    st.write("No todo lo que sientes es lo mismo. Distinguir capas te da palanca.")
     f = fecha_bloque(3)
 
-    card("Mapa corporal", enunciado="Localiza + nombra la sensación con precisión artesanal.")
-    zona = st.selectbox(
-        "¿Dónde lo sientes?",
-        ["Pecho", "Garganta", "Abdomen", "Mandíbula", "Hombros", "Cabeza", "Cuello", "Espalda", "Manos", "Brazos", "Piernas", "Pies"],
-    )
-    st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
-    tipo = st.text_input("Describe la sensación (calor, nudo, presión, hormigueo, pesadez...):")
+    card("Mapa emocional", subtitle="Emoción → sentimiento → clima.", enunciado="Separa capas internas, sin moralina.")
+    situacion = st.text_input("Situación del día")
+    emocion = st.text_input("Emoción automática (rápida)")
+    sentimiento = st.text_input("Sentimiento consciente (cuando lo nombraste)")
+    estado = st.text_input("Estado de ánimo de fondo (clima)")
+    energia = st.selectbox("Nivel de energía", ["Alto", "Medio", "Bajo"])
     card_end()
 
     if st.button("Guardar registro"):
-        guardar_respuesta(3, f, f"Marcador somático — Localización: {zona}", tipo)
+        meta = {
+            "emocion_automatica": emocion,
+            "sentimiento": sentimiento,
+            "estado_animo": estado,
+            "energia": energia,
+        }
+        guardar_respuesta(3, f, "Arquitectura emocional — Registro", situacion, meta=meta)
 
-elif menu == "Bloque 4: Registro de Precisión":
-    st.header("Bloque 4: Registro de Precisión")
-    st.write("Aquí el objetivo no es ‘sentir menos’, sino **nombrar mejor**.")
+# ---------- BLOQUE 4 ----------
+elif menu == "Bloque 4: Raíz y Rama":
+    st.header("Bloque 4: Raíz y rama")
+    st.write("Toda emoción compleja suele tener una base más simple.")
     f = fecha_bloque(4)
 
-    card("Formulario", enunciado="Cuanto más concreto el contexto, más útil el registro.")
-    emo = st.selectbox("Emoción detectada:", EMOTIONS if EMOTIONS else ["Ansiedad", "Frustración", "Paz", "Gratitud"])
-    st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
-    por_que = st.text_area("¿Por qué crees que era esa emoción?", height=90)
-    st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
-    donde = st.text_input("¿Dónde estabas? (contexto físico)")
-    st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
-    que_paso = st.text_area("¿Qué pasó para sentir eso? (hechos, no juicio)", height=110)
+    card("Registro", subtitle="Raíz (primaria) → Rama (secundaria).", enunciado="Separa la reacción automática de la historia mental.")
+    situacion = st.text_input("Situación")
+    primaria = st.text_input("Emoción primaria (raíz)")
+    secundaria = st.text_input("Emoción secundaria (rama)")
+    pensamiento = st.text_area("Pensamiento asociado (la frase interna)", height=90)
+    reflexion = st.text_area("Reflexión breve (qué cambió al verlo así)", height=90)
     card_end()
 
     if st.button("Guardar registro"):
-        meta = {"por_que": por_que, "donde": donde, "que_paso": que_paso}
-        guardar_respuesta(4, f, "Precisión emocional — Etiquetado", emo, meta=meta)
+        meta = {"primaria": primaria, "secundaria": secundaria, "pensamiento": pensamiento}
+        guardar_respuesta(4, f, f"Raíz y rama — {situacion}", reflexion, meta=meta)
 
-elif menu == "Bloque 5: Gestión de Recursos":
-    st.header("Bloque 5: Gestión de recursos")
-    st.write("Un recurso es aquello que te deja más capaz después de usarlo, no más roto.")
+# ---------- BLOQUE 5 ----------
+elif menu == "Bloque 5: Precisión Emocional":
+    st.header("Bloque 5: Precisión emocional")
+    st.write("Lo que se nombra, se puede regular.")
     f = fecha_bloque(5)
 
-    card("Ejemplos", enunciado="Si hoy tu mente viene con la persiana a medio bajar, usa un ejemplo y aterriza.")
-    st.write(
-        "- Sueño / descanso real\n- Calma / respiración\n- Apoyo social\n- Orden del entorno\n- Movimiento\n"
-        "- Nutrición simple\n- Tiempo sin pantallas\n- Límites / decir NO\n- Planificación mínima viable\n"
-        "- Exposición a luz y aire\n- Pausas sin estímulo\n- Pedir ayuda explícita"
-    )
-    card_end()
-
-    card("Registro", enunciado="Motivo → método → efecto.")
-    recurso = st.text_input("¿Qué recurso has fortalecido hoy?")
-    st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
-    p = st.text_area("¿Por qué ese recurso era importante hoy?", height=80)
-    st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
-    c = st.text_area("¿Cómo lo hiciste? (acciones concretas)", height=90)
-    st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
-    s = st.text_area("¿Cómo te sientes después de haberlo hecho?", height=80)
+    card("Registro", subtitle="De ‘mal’ a matiz.", enunciado="Pasa de etiqueta vaga a emoción concreta.")
+    situacion = st.text_input("Situación")
+    antes = st.text_input("Antes decía que me sentía…")
+    precisas = st.text_input("Emociones más precisas (2–5, separadas por comas)")
+    cuerpo = st.text_input("¿Dónde lo sentiste en el cuerpo?")
+    frase = st.text_area("Frase final de integración (1–3 líneas)", height=90)
     card_end()
 
     if st.button("Guardar registro"):
-        meta = {"por_que": p, "como": c, "despues": s}
-        guardar_respuesta(5, f, "Gestión de recursos — Recurso fortalecido", recurso, meta=meta)
+        meta = {"antes": antes, "precisas": precisas, "cuerpo": cuerpo}
+        guardar_respuesta(5, f, f"Precisión emocional — {situacion}", frase, meta=meta)
 
+# ---------- BLOQUE 6 ----------
 elif menu == "Bloque 6: Detector de Sesgos":
     st.header("Bloque 6: Detector de sesgos")
-    st.write("Sesgo = el piloto automático defendiendo su ruta como si fuera ley natural.")
+    st.write("El piloto automático es eficiente… y a veces tramposo.")
     f = fecha_bloque(6)
 
-    card("Registro", enunciado="Detecta el sesgo antes de que firme el contrato.")
-    sesgo = st.selectbox("Sesgo identificado hoy:", BIASES)
-    st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
-    obs = st.text_area("Contexto (qué pasó, qué pensaste, qué hiciste):", height=120)
+    card("Registro", subtitle="Sesgo → pensamiento → alternativa.", enunciado="Detecta el sesgo antes de actuar.")
+    sesgo = st.selectbox("Sesgo detectado hoy:", BIASES if BIASES else ["Sesgo de confirmación", "Heurística de disponibilidad"])
+    situacion = st.text_input("Situación")
+    pensamiento = st.text_area("Pensamiento automático", height=90)
+    alternativa = st.text_area("Alternativa más realista (o más falsable)", height=90)
     card_end()
 
     if st.button("Guardar registro"):
-        guardar_respuesta(6, f, f"Sesgos — {sesgo}", obs)
+        meta = {"situacion": situacion, "pensamiento": pensamiento, "alternativa": alternativa}
+        guardar_respuesta(6, f, f"Sesgo — {sesgo}", alternativa, meta=meta)
 
+# ---------- BLOQUE 7 ----------
 elif menu == "Bloque 7: El Abogado del Diablo":
     st.header("Bloque 7: El abogado del diablo")
-    st.write("No es autoataque: es pinchar el globo del relato cuando se vuelve dogma.")
+    st.write("No es autoataque: es higiene mental.")
     f = fecha_bloque(7)
 
-    card("Ejemplos de creencias limitantes", enunciado="Si una te pica, probablemente es material útil.")
-    for b in BELIEF_EXAMPLES:
-        st.write(f"- {b}")
-    card_end()
-
-    card("Registro", enunciado="Frase literal → hechos que la contradicen.")
-    creencia = st.text_input("Creencia limitante detectada (tu versión exacta):")
-    st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
-    st.caption("Pistas si te cuesta:")
-    st.write(
-        "- Escribe la frase tal como aparece, sin maquillarla.\n"
-        "- ¿Es un **dato** o una **sentencia**?\n"
-        "- Si tu mejor amiga dijera esto, ¿qué le responderías?\n"
-        "- ¿Qué evidencia reciente la contradice, aunque sea pequeña?"
-    )
-    st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
-    contra = st.text_area("Evidencia real que la contradice (hechos):", height=140)
+    card("Registro", subtitle="Frase literal → evidencia → nueva formulación.", enunciado="Cuando el relato se vuelve dogma, se pincha el globo.")
+    creencia = st.text_input("Creencia limitante (literal)")
+    evidencia = st.text_area("Evidencia que la contradice (hechos, no deseo)", height=110)
+    nueva = st.text_area("Nueva formulación (más realista / más útil)", height=90)
     card_end()
 
     if st.button("Guardar registro"):
-        guardar_respuesta(7, f, f"Abogado del diablo — Creencia: {creencia}", contra)
+        meta = {"evidencia": evidencia}
+        guardar_respuesta(7, f, f"Abogado del diablo — {creencia}", nueva, meta=meta)
 
+# ---------- BLOQUE 8 ----------
 elif menu == "Bloque 8: Antifragilidad":
     st.header("Bloque 8: Antifragilidad")
-    st.write("No romantizamos el caos. Lo usamos como fertilizante cuando ya ha ocurrido.")
+    st.write("No romantizamos el caos: lo convertimos en información.")
     f = fecha_bloque(8)
 
-    card("Registro", enunciado="Evento → aprendizaje (con pistas si hoy cuesta).")
-    caos = st.text_input("¿Qué imprevisto ha ocurrido?")
-    st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
-    st.caption("Pistas:")
-    st.write(
-        "- ¿Qué habilidad entrenaste sin querer?\n"
-        "- ¿Qué información nueva apareció?\n"
-        "- Si se repitiera, ¿qué harías distinto?\n"
-        "- ¿Qué parte de tu control era ilusión?"
-    )
-    st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
-    ventaja = st.text_area("¿Qué beneficio o aprendizaje has extraído?", height=120)
+    card("Registro", subtitle="Evento → aprendizaje.", enunciado="El imprevisto ya ocurrió; ahora que te pague en datos.")
+    evento = st.text_input("Imprevisto ocurrido")
+    habilidad = st.text_input("Qué habilidad entrenaste (aunque no quisieras)")
+    distinto = st.text_area("Qué harías distinto si se repite", height=90)
+    aprendizaje = st.text_area("Aprendizaje principal (una idea operativa)", height=90)
     card_end()
 
     if st.button("Guardar registro"):
-        guardar_respuesta(8, f, f"Antifragilidad — Evento: {caos}", ventaja)
+        meta = {"habilidad": habilidad, "distinto": distinto}
+        guardar_respuesta(8, f, f"Antifragilidad — {evento}", aprendizaje, meta=meta)
 
+# ---------- BLOQUE 9 ----------
 elif menu == "Bloque 9: El Nuevo Rumbo":
-    st.header("Bloque 9: El Nuevo Rumbo")
-    st.write("Este bloque es cierre: úsalo cuando hayas completado el recorrido.")
+    st.header("Bloque 9: El nuevo rumbo")
+    st.write("Cierre del recorrido. Integración: pocas ideas, mucha verdad.")
+    f = fecha_bloque(9)
 
-    card("Beneficios de haber completado Azimut", enunciado="Lista compendio (mapa de posibilidades).")
-    st.write("\n".join([f"- {x}" for x in BENEFITS_BLOCK9]))
+    card("Integración", subtitle="Síntesis final.", enunciado="Qué cambió, qué aprendiste, qué rumbo sigue.")
+    cambio = st.text_area("Qué ha cambiado (concreto)", height=90)
+    util = st.text_input("Qué bloque fue más útil")
+    dificil = st.text_input("Qué te costó más")
+    mejor = st.text_input("Qué gestionas mejor ahora")
+    rumbo = st.text_area("Próximo rumbo (una decisión o una regla)", height=90)
     card_end()
 
-    card("Reflexión final", enunciado="Qué aprendiste, cómo avanzaste por bloques, qué te costó y qué gestionas mejor ahora.")
-    reflexion = st.text_area("Escribe tu reflexión:", height=190)
-    card_end()
-
-    if st.button("Guardar reflexión final"):
-        guardar_respuesta(9, "", "Integración — Reflexión final", reflexion)
+    if st.button("Guardar integración"):
+        meta = {"bloque_util": util, "dificil": dificil, "mejor": mejor, "rumbo": rumbo}
+        guardar_respuesta(9, f, "Integración — Cierre", cambio, meta=meta)
         st.balloons()
 
+# ---------- MIS RESPUESTAS ----------
 elif menu == "📊 MIS RESPUESTAS":
     st.title("📊 Mis respuestas")
 
@@ -708,6 +801,23 @@ elif menu == "📊 MIS RESPUESTAS":
         df["fecha_sort"] = df["fecha"].apply(lambda x: to_sortable_date(x) if isinstance(x, str) else None)
         df["ts_dt"] = pd.to_datetime(df["timestamp"], errors="coerce")
         df["ts_date"] = df["ts_dt"].dt.date
+
+        # Panel de métricas arriba (producto)
+        st.markdown("### Progreso y adherencia")
+        metrics = compute_adherence_metrics(df, st.session_state.perfil)
+        c1, c2, c3, c4, c5 = st.columns(5)
+        with c1:
+            st.metric("Racha actual", f"{metrics['streak']}")
+        with c2:
+            st.metric("Mejor racha", f"{metrics['best_streak']}")
+        with c3:
+            st.metric("Días activos", f"{metrics['active_days']}")
+        with c4:
+            st.metric("Días desde inicio", f"{metrics['days_total']}")
+        with c5:
+            st.metric("Constancia", f"{metrics['active_rate']*100:.0f}%")
+
+        st.markdown("---")
 
         min_d = df["ts_date"].dropna().min()
         max_d = df["ts_date"].dropna().max()
@@ -741,10 +851,17 @@ elif menu == "📊 MIS RESPUESTAS":
                 st.subheader(f"Bloque {bloque}")
                 bdf = dff2[dff2["bloque"] == bloque].copy()
 
-                if bloque == 9:
-                    for _, row in bdf.iterrows():
+                bdf["group_date"] = bdf["fecha"].where(bdf["fecha"].astype(str).str.strip() != "", None)
+                bdf["group_date"] = bdf["group_date"].fillna(bdf["ts_date"].astype(str))
+
+                for gd in bdf["group_date"].unique():
+                    st.markdown(f"#### {gd}")
+                    gdf = bdf[bdf["group_date"] == gd]
+                    for _, row in gdf.iterrows():
                         card(row.get("concepto", "") or "Registro", subtitle=None)
-                        st.write(row.get("respuesta", ""))
+                        resp = row.get("respuesta", "")
+                        if isinstance(resp, str) and resp.strip():
+                            st.write(resp)
                         meta = row.get("meta", {})
                         if isinstance(meta, dict) and meta:
                             st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
@@ -754,25 +871,6 @@ elif menu == "📊 MIS RESPUESTAS":
                                     st.write(f"**{k.replace('_',' ').capitalize()}:** {v}")
                         card_end()
                         st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
-                else:
-                    bdf["group_date"] = bdf["fecha"].where(bdf["fecha"].astype(str).str.strip() != "", None)
-                    bdf["group_date"] = bdf["group_date"].fillna(bdf["ts_date"].astype(str))
-
-                    for gd in bdf["group_date"].unique():
-                        st.markdown(f"#### {gd}")
-                        gdf = bdf[bdf["group_date"] == gd]
-                        for _, row in gdf.iterrows():
-                            card(row.get("concepto", "") or "Registro", subtitle=None)
-                            st.write(row.get("respuesta", ""))
-                            meta = row.get("meta", {})
-                            if isinstance(meta, dict) and meta:
-                                st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
-                                st.caption("Detalles")
-                                for k, v in meta.items():
-                                    if str(v).strip():
-                                        st.write(f"**{k.replace('_',' ').capitalize()}:** {v}")
-                            card_end()
-                            st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
 
         with tab2:
             st.markdown("### Visualización de datos")
@@ -781,50 +879,45 @@ elif menu == "📊 MIS RESPUESTAS":
             daily = daily.sort_values("ts_date")
 
             if PLOTLY_AVAILABLE:
-                fig_line = px.line(
-                    daily, x="ts_date", y="registros", markers=True, title="Constancia de registro (registros/día)"
-                )
+                fig_line = px.line(daily, x="ts_date", y="registros", markers=True, title="Constancia (registros/día)")
                 st.plotly_chart(fig_line, use_container_width=True)
             else:
-                st.info("Plotly no está instalado. Usando gráficos nativos. (Si quieres Plotly, añade `plotly` a requirements.txt).")
                 if len(daily):
-                    chart_df = daily.set_index("ts_date")
-                    st.line_chart(chart_df)
+                    st.line_chart(daily.set_index("ts_date"))
 
-            d4 = dff[dff["bloque"] == 4].copy()
-            d4["emo"] = d4["respuesta"].fillna("").astype(str).str.strip()
-            d4 = d4[d4["emo"] != ""]
-            if len(d4):
-                emo_counts = d4["emo"].value_counts().reset_index()
-                emo_counts.columns = ["Emoción", "Frecuencia"]
-
-                if PLOTLY_AVAILABLE:
-                    fig_bar = px.bar(emo_counts, x="Emoción", y="Frecuencia", title="Distribución emocional (Bloque 4)")
-                    st.plotly_chart(fig_bar, use_container_width=True)
-                else:
-                    st.bar_chart(emo_counts.set_index("Emoción"))
+            # Distribución por bloque
+            by_block = dff.groupby("bloque").size().reindex(range(1, 10), fill_value=0).reset_index(name="registros")
+            if PLOTLY_AVAILABLE:
+                fig_bar = px.bar(by_block, x="bloque", y="registros", title="Distribución por bloque")
+                st.plotly_chart(fig_bar, use_container_width=True)
             else:
-                st.info("Aún no hay registros suficientes en el Bloque 4 para la distribución emocional.")
+                st.bar_chart(by_block.set_index("bloque"))
 
         with tab3:
-            st.markdown("### Sistema de análisis e inteligencia (Insights)")
-            dom_emo, dom_ctx = dominant_emotion_and_context(dff)
-            recs = recommendations(dom_emo)
+            st.markdown("### Insights")
+            # Insight simple: bloque más usado y día más activo
+            if not dff.empty:
+                top_block = int(dff["bloque"].value_counts().index[0])
+                top_day = dff.groupby("ts_date").size().sort_values(ascending=False).head(1)
+                top_day_str = str(top_day.index[0]) if len(top_day) else "—"
 
-            c1, c2 = st.columns(2)
-            with c1:
-                card("Detección de patrones", enunciado="Lo que se repite, manda.")
-                st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
-                st.write(f"**Emoción dominante:** {dom_emo if dom_emo else '—'}")
-                st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
-                st.write(f"**Contexto recurrente:** {dom_ctx if dom_ctx else '—'}")
-                card_end()
-            with c2:
-                card("Recomendaciones dinámicas", enunciado="Acción pequeña, palanca grande.")
-                st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
-                for r in recs[:4]:
-                    st.write(f"- {r}")
-                card_end()
+                c1, c2 = st.columns(2)
+                with c1:
+                    card("Patrones", enunciado="Lo que se repite, manda.")
+                    st.write(f"**Bloque más usado:** {top_block}")
+                    st.write(f"**Día más activo:** {top_day_str}")
+                    card_end()
+                with c2:
+                    p = st.session_state.perfil
+                    obj_d = int(p.get("objetivo_dias_semana", 5))
+                    obj_b = int(p.get("objetivo_bloques_dia", 1))
+                    card("Objetivo", enunciado="Diseño de adherencia (no de perfección).")
+                    st.write(f"**Objetivo días/semana:** {obj_d}")
+                    st.write(f"**Objetivo bloques/día:** {obj_b}")
+                    st.write("Si hoy estás sin gasolina, haz 1 bloque. Si estás bien, haz 2. Si estás brillante, no te vengas arriba: repite mañana.")
+                    card_end()
+            else:
+                st.write("Sin datos en el rango filtrado.")
 
         st.write("")
         c1, c2, c3 = st.columns([0.45, 0.35, 0.2])
