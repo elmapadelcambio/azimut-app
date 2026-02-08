@@ -34,12 +34,8 @@ DATA_DIR.mkdir(exist_ok=True)
 HISTORY_FILE = DATA_DIR / "history.json"
 
 # =========================================================
-# SESIÓN: modo oscuro + historial
+# HISTORIAL
 # =========================================================
-if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = False
-
-
 def load_history():
     if HISTORY_FILE.exists():
         try:
@@ -211,23 +207,15 @@ def azimut_benefits(_news: str, _azimut: str) -> list[str]:
 BENEFITS_BLOCK9 = azimut_benefits(NEWS_TEXT, AZIMUT_TEXT)
 
 # =========================================================
-# BRAND / THEME
+# BRAND / THEME (solo modo claro)
 # =========================================================
-def apply_theme(dark: bool):
-    if dark:
-        bg = "#0b1220"
-        text = "#e9eef7"
-        muted = "#b8c2d6"
-        card = "#101a2b"
-        border = "rgba(255,255,255,0.08)"
-        input_bg = "rgba(255,255,255,0.06)"
-    else:
-        bg = BRAND_WHITE
-        text = "#0b0f1a"
-        muted = "#4b5563"
-        card = "#ffffff"
-        border = "rgba(10,20,40,0.10)"
-        input_bg = "rgba(10,20,40,0.03)"
+def apply_theme():
+    bg = BRAND_WHITE
+    text = "#0b0f1a"
+    muted = "#4b5563"
+    card = "#ffffff"
+    border = "rgba(10,20,40,0.10)"
+    input_bg = "rgba(10,20,40,0.03)"
 
     st.markdown(
         f"""
@@ -273,7 +261,7 @@ def apply_theme(dark: bool):
             font-weight: 900 !important;
           }}
 
-          /* Evitar el "rojo" del radio: forzamos el dot en amarillo */
+          /* Dot del radio en amarillo */
           section[data-testid="stSidebar"] input[type="radio"] {{
             accent-color: {BRAND_YELLOW} !important;
           }}
@@ -372,29 +360,6 @@ def apply_theme(dark: bool):
             border: 0px !important;
           }}
 
-          /* Icono luna: abajo a la izquierda, sin “caja” blanca */
-          .az-moon {{
-            position: fixed;
-            left: 14px;
-            bottom: 14px;
-            z-index: 9999;
-          }}
-          .az-moon button {{
-            width: 34px !important;
-            height: 34px !important;
-            border-radius: 999px !important;
-            padding: 0px !important;
-            font-size: 18px !important;
-            background: transparent !important;
-            color: {BRAND_YELLOW} !important;
-            border: 0px !important;
-            box-shadow: none !important;
-          }}
-          .az-moon button:hover {{
-            background: rgba(255,255,255,0.14) !important;
-          }}
-
-          /* Evitar “cajas” vacías (margen) alrededor de algunos elementos */
           hr {{
             border-color: {border} !important;
           }}
@@ -404,17 +369,7 @@ def apply_theme(dark: bool):
     )
 
 
-apply_theme(st.session_state.dark_mode)
-
-# =========================================================
-# Toggle luna (abajo-izquierda, sin fondo)
-# =========================================================
-moon_wrap = st.container()
-moon_wrap.markdown('<div class="az-moon">', unsafe_allow_html=True)
-if moon_wrap.button("🌙", key="moon_toggle", help="Modo oscuro"):
-    st.session_state.dark_mode = not st.session_state.dark_mode
-    st.rerun()
-moon_wrap.markdown("</div>", unsafe_allow_html=True)
+apply_theme()
 
 # =========================================================
 # DF + analítica
@@ -435,31 +390,6 @@ def to_sortable_date(d):
         return datetime.strptime(d, "%d/%m/%Y").strftime("%Y-%m-%d")
     except Exception:
         return None
-
-
-def compute_metrics(df: pd.DataFrame):
-    total = len(df)
-    days = set()
-    for _, r in df.iterrows():
-        f = r.get("fecha")
-        if isinstance(f, str) and f.strip():
-            days.add(f.strip())
-        else:
-            ts = r.get("timestamp")
-            if isinstance(ts, str) and ts:
-                days.add(ts[:10])
-    active_days = len(days)
-
-    last7 = 0
-    if total:
-        try:
-            df_ts = df[df["timestamp"].notna()].copy()
-            df_ts["ts_dt"] = pd.to_datetime(df_ts["timestamp"], errors="coerce")
-            cutoff = pd.Timestamp.now() - pd.Timedelta(days=7)
-            last7 = int((df_ts["ts_dt"] >= cutoff).sum())
-        except Exception:
-            last7 = 0
-    return total, active_days, last7
 
 
 def dominant_emotion_and_context(df: pd.DataFrame):
@@ -568,14 +498,6 @@ def card_end():
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-def goto(item: str):
-    st.session_state["nav_menu"] = item
-    st.rerun()
-
-
-# =========================================================
-# Fecha por bloque (1–8)
-# =========================================================
 def fecha_bloque(bloque: int):
     st.caption("Fecha del registro (manual, para tu seguimiento):")
     key = f"fecha_bloque_{bloque}"
@@ -827,7 +749,6 @@ elif menu == "📊 MIS RESPUESTAS":
                         if isinstance(meta, dict) and meta:
                             st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
                             st.caption("Detalles")
-                            # Mostrar meta de forma legible (sin JSON crudo)
                             for k, v in meta.items():
                                 if str(v).strip():
                                     st.write(f"**{k.replace('_',' ').capitalize()}:** {v}")
