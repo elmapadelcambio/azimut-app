@@ -1,5 +1,6 @@
 import json
 import re
+import hashlib
 from datetime import datetime, date, timedelta
 from pathlib import Path
 
@@ -31,57 +32,53 @@ NEWSLETTERS_FILE = Path("AA-TODAS las newsletters publicadas .txt")
 
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
-HISTORY_FILE = DATA_DIR / "history.json"
-PROFILE_FILE = DATA_DIR / "profile.json"
 
 # =========================================================
-# PERFIL / ONBOARDING
+# IDENTIDAD DE USUARIO (clave privada → archivo aislado)
 # =========================================================
-DEFAULT_PROFILE = {
-    "onboarded": False,
-    "nombre": "",
-    "fecha_inicio": date.today().strftime("%Y-%m-%d"),
-    "objetivo_dias_semana": 5,  # 1–7
-    "objetivo_bloques_dia": 1,  # 1–3
-    "modo": "Suave",  # Suave / Estándar / Intensivo
-}
+def _hash_user_key(user_key: str) -> str:
+    # Hash estable, no reversible. “Separación” de datos por usuario.
+    return hashlib.sha256(user_key.encode("utf-8")).hexdigest()[:16]
 
 
-def load_profile():
-    if PROFILE_FILE.exists():
-        try:
-            p = json.loads(PROFILE_FILE.read_text(encoding="utf-8"))
-            if not isinstance(p, dict):
-                return DEFAULT_PROFILE.copy()
-            out = DEFAULT_PROFILE.copy()
-            out.update(p)
-            return out
-        except Exception:
-            return DEFAULT_PROFILE.copy()
-    return DEFAULT_PROFILE.copy()
+def get_user_storage_paths():
+    """
+    Devuelve rutas a ficheros de historial por usuario.
+    Si no hay clave privada válida, NO hay persistencia (solo sesión).
+    """
+    user_key = (st.session_state.get("user_key") or "").strip()
+    if not user_key:
+        return None, None  # sin persistencia
 
+    uid = _hash_user_key(user_key)
+    history_file = DATA_DIR / f"history_{uid}.json"
+    export_file = DATA_DIR / f"history_export_{uid}.csv"
+    return history_file, export_file
 
-def save_profile(p: dict):
-    PROFILE_FILE.write_text(json.dumps(p, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-if "perfil" not in st.session_state:
-    st.session_state.perfil = load_profile()
 
 # =========================================================
-# HISTORIAL
+# HISTORIAL (por usuario)
 # =========================================================
 def load_history():
-    if HISTORY_FILE.exists():
+    history_file, _ = get_user_storage_paths()
+    # Si no hay clave privada → historial solo en memoria (no se mezcla con nadie)
+    if history_file is None:
+        return []
+
+    if history_file.exists():
         try:
-            return json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
+            return json.loads(history_file.read_text(encoding="utf-8"))
         except Exception:
             return []
     return []
 
 
 def save_history(hist):
-    HISTORY_FILE.write_text(json.dumps(hist, ensure_ascii=False, indent=2), encoding="utf-8")
+    history_file, _ = get_user_storage_paths()
+    # Sin clave privada no persistimos nada (evita fugas/mezclas)
+    if history_file is None:
+        return
+    history_file.write_text(json.dumps(hist, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 if "historial" not in st.session_state:
@@ -366,64 +363,55 @@ def to_sortable_date(d):
         return None
 
 
-def safe_parse_ymd(s: str) -> date:
-    try:
-        return datetime.strptime(s, "%Y-%m-%d").date()
-    except Exception:
-        return date.today()
+def compute_basic_metrics(df: pd.DataFrame):
+    """
+    Métricas de adherencia sin onboarding:
+    - start = primer día con registro
+    - today = hoy
+    - días activos = nº de días con al menos un registro
+    - racha actual / mejor racha
+    """
+    if df.empty:
+        return {
+            "start": None,
+            "today": date.today(),
+            "days_total": 0,
+            "active_days": 0,
+            "active_rate": 0.0,
+            "streak": 0,
+            "best_streak": 0,
+        }
 
+    df2 = df[df["ts_date"].notna()].copy()
+    if df2.empty:
+        return {
+            "start": None,
+            "today": date.today(),
+            "days_total": 0,
+            "active_days": 0,
+            "active_rate": 0.0,
+            "streak": 0,
+            "best_streak": 0,
+        }
 
-def compute_adherence_metrics(df: pd.DataFrame, profile: dict):
-    # df debe tener ts_dt y ts_date calculados
-    start = safe_parse_ymd(str(profile.get("fecha_inicio", date.today().strftime("%Y-%m-%d"))))
+    start = df2["ts_date"].min()
     today = date.today()
-    if start > today:
-        start = today
-
     days_total = (today - start).days + 1
     if days_total < 1:
         days_total = 1
 
-    if df.empty or "ts_date" not in df.columns:
-        active_days = 0
-        active_rate = 0.0
-        avg_per_active = 0.0
-        avg_per_total = 0.0
-        streak = 0
-        best_streak = 0
-        return {
-            "start": start,
-            "today": today,
-            "days_total": days_total,
-            "active_days": active_days,
-            "active_rate": active_rate,
-            "avg_per_active": avg_per_active,
-            "avg_per_total": avg_per_total,
-            "streak": streak,
-            "best_streak": best_streak,
-        }
-
-    # Filtra desde fecha inicio
-    df2 = df[df["ts_date"].notna()].copy()
-    df2 = df2[df2["ts_date"] >= start]
-
-    active_dates = sorted(set(df2["ts_date"].tolist()))
-    active_days = len(active_dates)
+    active_set = set(df2["ts_date"].tolist())
+    active_days = len(active_set)
     active_rate = active_days / days_total if days_total else 0.0
 
-    total_regs = len(df2)
-    avg_per_active = (total_regs / active_days) if active_days else 0.0
-    avg_per_total = total_regs / days_total if days_total else 0.0
-
-    # Streak actual: días consecutivos hasta hoy
-    active_set = set(active_dates)
+    # streak actual
     streak = 0
     d = today
     while d >= start and d in active_set:
         streak += 1
         d = d - timedelta(days=1)
 
-    # Best streak (máxima racha histórica)
+    # best streak
     best_streak = 0
     cur = 0
     d = start
@@ -441,8 +429,6 @@ def compute_adherence_metrics(df: pd.DataFrame, profile: dict):
         "days_total": days_total,
         "active_days": active_days,
         "active_rate": active_rate,
-        "avg_per_active": avg_per_active,
-        "avg_per_total": avg_per_total,
         "streak": streak,
         "best_streak": best_streak,
     }
@@ -452,6 +438,11 @@ def compute_adherence_metrics(df: pd.DataFrame, profile: dict):
 # GUARDADO
 # =========================================================
 def guardar_respuesta(bloque: int, fecha_str: str, concepto: str, respuesta: str, meta: dict | None = None):
+    # Si no hay clave privada, no guardamos persistentemente (evita que se mezcle / filtre)
+    if not (st.session_state.get("user_key") or "").strip():
+        st.warning("Para guardar y ver un historial privado, introduce tu **clave privada** en la barra lateral.")
+        return
+
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     entry = {
         "timestamp": ts,
@@ -470,6 +461,30 @@ def guardar_respuesta(bloque: int, fecha_str: str, concepto: str, respuesta: str
 # UI: navegación
 # =========================================================
 st.sidebar.markdown('<div class="az-sidebar-title">Azimut</div>', unsafe_allow_html=True)
+
+# --- Clave privada (privacidad por usuario) ---
+st.sidebar.markdown("**Privacidad**")
+user_key_in = st.sidebar.text_input(
+    "Clave privada (no la compartas)",
+    type="password",
+    value=st.session_state.get("user_key", ""),
+    help="Esto separa tu historial del resto de personas. Usa una frase/código que recuerdes.",
+)
+# Guardamos en session_state (solo para esta sesión)
+st.session_state.user_key = user_key_in.strip()
+
+# Si cambia la clave, recarga historial correspondiente
+if "last_user_key" not in st.session_state:
+    st.session_state.last_user_key = st.session_state.user_key
+
+if st.session_state.user_key != st.session_state.last_user_key:
+    st.session_state.historial = load_history()
+    st.session_state.last_user_key = st.session_state.user_key
+    st.rerun()
+
+st.sidebar.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+if not st.session_state.user_key:
+    st.sidebar.info("Introduce tu clave para activar historial privado.")
 
 MENU_ITEMS = [
     "INICIO",
@@ -513,95 +528,6 @@ def fecha_bloque(bloque: int):
 
 
 # =========================================================
-# ONBOARDING (producto)
-# =========================================================
-def onboarding_panel():
-    p = st.session_state.perfil
-
-    card(
-        "Onboarding",
-        "Configura tu brújula: esto define tu objetivo y activa el tablero de progreso.",
-        enunciado="Tres minutos ahora = semanas de adherencia después.",
-    )
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        nombre = st.text_input("Nombre (opcional)", value=str(p.get("nombre", "")))
-        fecha_inicio = st.date_input(
-            "Fecha de inicio del programa",
-            value=safe_parse_ymd(str(p.get("fecha_inicio", date.today().strftime("%Y-%m-%d")))),
-        )
-        modo = st.selectbox("Modo", ["Suave", "Estándar", "Intensivo"], index=["Suave", "Estándar", "Intensivo"].index(p.get("modo", "Suave")))
-    with col2:
-        objetivo_dias = st.slider("Objetivo: días/semana", min_value=1, max_value=7, value=int(p.get("objetivo_dias_semana", 5)))
-        objetivo_bloques = st.slider("Objetivo: bloques/día", min_value=1, max_value=3, value=int(p.get("objetivo_bloques_dia", 1)))
-        st.markdown("**Regla práctica**")
-        st.write("- Suave: 1 bloque/día, 3–4 días/semana\n- Estándar: 1–2 bloques/día, 5 días/semana\n- Intensivo: 2–3 bloques/día, 6–7 días/semana")
-
-    card_end()
-
-    if st.button("Guardar onboarding"):
-        p["nombre"] = nombre.strip()
-        p["fecha_inicio"] = fecha_inicio.strftime("%Y-%m-%d")
-        p["objetivo_dias_semana"] = int(objetivo_dias)
-        p["objetivo_bloques_dia"] = int(objetivo_bloques)
-        p["modo"] = modo
-        p["onboarded"] = True
-        st.session_state.perfil = p
-        save_profile(p)
-        st.toast("✅ Onboarding guardado")
-        st.rerun()
-
-
-def progress_dashboard(df_all: pd.DataFrame):
-    p = st.session_state.perfil
-    card("Progreso", "Tablero operativo: constancia > intensidad.", enunciado="Métricas frías para un sistema emocional más templado.")
-    # Preparación df
-    df = df_all.copy()
-    if df.empty:
-        st.write("Aún no hay registros. Empieza con Bloque 1 y deja que el sistema aprenda tu patrón.")
-        card_end()
-        return
-
-    df["ts_dt"] = pd.to_datetime(df["timestamp"], errors="coerce")
-    df["ts_date"] = df["ts_dt"].dt.date
-    metrics = compute_adherence_metrics(df, p)
-
-    # KPIs
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.metric("Racha actual", f"{metrics['streak']} día(s)")
-    with c2:
-        st.metric("Mejor racha", f"{metrics['best_streak']} día(s)")
-    with c3:
-        st.metric("Días activos", f"{metrics['active_days']} / {metrics['days_total']}")
-    with c4:
-        st.metric("Constancia", f"{metrics['active_rate']*100:.0f}%")
-
-    st.markdown("<div class='az-gap'></div>", unsafe_allow_html=True)
-
-    # Objetivo semanal aproximado: constancia vs objetivo_dias_semana
-    objetivo_dias = int(p.get("objetivo_dias_semana", 5))
-    # Ventana últimos 7 días
-    last7_start = date.today() - timedelta(days=6)
-    df7 = df[df["ts_date"].notna() & (df["ts_date"] >= last7_start)].copy()
-    active7 = len(set(df7["ts_date"].tolist()))
-    st.write(f"**Últimos 7 días:** {active7} día(s) con registro (objetivo: {objetivo_dias}/7).")
-    st.progress(min(1.0, active7 / 7.0))
-
-    # Progreso por bloque (conteo simple)
-    st.markdown("#### Progreso por bloque")
-    counts = df.groupby("bloque").size().reindex(range(1, 10), fill_value=0).reset_index()
-    counts.columns = ["Bloque", "Registros"]
-    if PLOTLY_AVAILABLE:
-        fig = px.bar(counts, x="Bloque", y="Registros", title="Registros por bloque")
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.bar_chart(counts.set_index("Bloque"))
-
-    card_end()
-
-
-# =========================================================
 # PANTALLAS
 # =========================================================
 df_all = history_df()
@@ -609,29 +535,33 @@ df_all = history_df()
 # ---------- INICIO ----------
 if menu == "INICIO":
     card("Azimut", "Cuaderno de navegación: no para pensar más, sino para pensar mejor.")
-    p = st.session_state.perfil
-    nombre = p.get("nombre", "").strip()
-    saludo = f"Hola, {nombre}." if nombre else "Hola."
     st.write(
-        f"{saludo} Aquí no buscamos épica: buscamos **fidelidad al proceso**.\n\n"
-        "Azimut funciona como un **entrenamiento de precisión**: cada bloque es una coordenada. "
-        "Lo rellenás breve, lo guardas, y con el tiempo aparece lo valioso: **patrones**.\n\n"
+        "Azimut funciona como un entrenamiento de precisión: cada bloque es una coordenada. "
+        "Lo rellenas breve, lo guardas, y con el tiempo aparece lo valioso: **patrones**.\n\n"
+        "Importante: para que tu registro sea **personal y privado**, introduce una **clave privada** en la barra lateral. "
+        "Esa clave separa tu historial del resto de personas que usen el enlace.\n\n"
         "Tus respuestas se guardan en **“📊 MIS RESPUESTAS”**. Ahí puedes filtrar por fechas, "
-        "ver tu historial por bloques, y observar constancia y distribución.\n\n"
-        "Regla de oro: empieza pequeño. La adherencia es un animal tímido."
+        "ver tu historial por bloques y observar constancia."
     )
     card_end()
 
     st.markdown("---")
+    # Mini-panel de métricas (sin onboarding)
+    if not df_all.empty:
+        dfm = df_all.copy()
+        dfm["ts_dt"] = pd.to_datetime(dfm["timestamp"], errors="coerce")
+        dfm["ts_date"] = dfm["ts_dt"].dt.date
+        m = compute_basic_metrics(dfm)
 
-    # Onboarding si no está hecho
-    if not st.session_state.perfil.get("onboarded", False):
-        onboarding_panel()
-    else:
-        progress_dashboard(df_all)
-
-        with st.expander("Ajustes de onboarding"):
-            onboarding_panel()
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.metric("Racha actual", f"{m['streak']} día(s)")
+        with c2:
+            st.metric("Mejor racha", f"{m['best_streak']} día(s)")
+        with c3:
+            st.metric("Días activos", f"{m['active_days']}")
+        with c4:
+            st.metric("Constancia", f"{m['active_rate']*100:.0f}%")
 
 # ---------- BLOQUE 1 ----------
 elif menu == "Bloque 1: Vía Negativa":
@@ -640,7 +570,7 @@ elif menu == "Bloque 1: Vía Negativa":
     f = fecha_bloque(1)
 
     card("Registro del día", subtitle="Menos, pero con impacto.", enunciado="Una frase clara. Sin negociación.")
-    dato = st.text_input("¿Qué vas a dejar de hacer hoy?", label_visibility="visible")
+    dato = st.text_input("¿Qué vas a dejar de hacer hoy?")
     card_end()
 
     if st.button("Guardar compromiso"):
@@ -728,7 +658,10 @@ elif menu == "Bloque 6: Detector de Sesgos":
     f = fecha_bloque(6)
 
     card("Registro", subtitle="Sesgo → pensamiento → alternativa.", enunciado="Detecta el sesgo antes de actuar.")
-    sesgo = st.selectbox("Sesgo detectado hoy:", BIASES if BIASES else ["Sesgo de confirmación", "Heurística de disponibilidad"])
+    sesgo = st.selectbox(
+        "Sesgo detectado hoy:",
+        BIASES if BIASES else ["Sesgo de confirmación", "Heurística de disponibilidad"],
+    )
     situacion = st.text_input("Situación")
     pensamiento = st.text_area("Pensamiento automático", height=90)
     alternativa = st.text_area("Alternativa más realista (o más falsable)", height=90)
@@ -777,6 +710,22 @@ elif menu == "Bloque 9: El Nuevo Rumbo":
     st.write("Cierre del recorrido. Integración: pocas ideas, mucha verdad.")
     f = fecha_bloque(9)
 
+    # ✅ Lista de beneficios EN CARD (antes de las entradas existentes)
+    card("¿Qué me llevo de esto?", subtitle=None, enunciado=None)
+    st.write(
+        "- Nombrar mis emociones con más precisión (menos niebla).\n"
+        "- Detectar antes cuándo entro en piloto automático.\n"
+        "- Separar hechos de interpretaciones con más facilidad.\n"
+        "- Identificar patrones repetidos (y no discutir con ellos: intervenir).\n"
+        "- Regular mejor mi respuesta al estrés (más margen entre estímulo y reacción).\n"
+        "- Reconocer creencias rígidas y desactivarlas con evidencia.\n"
+        "- Convertir imprevistos en aprendizaje utilizable (antifragilidad práctica).\n"
+        "- Tomar decisiones con menos impulsividad y más claridad.\n"
+        "- Sostener hábitos pequeños con más consistencia.\n"
+        "- Tener un mapa personal de lo que me pasa y cómo lo gestiono."
+    )
+    card_end()
+
     card("Integración", subtitle="Síntesis final.", enunciado="Qué cambió, qué aprendiste, qué rumbo sigue.")
     cambio = st.text_area("Qué ha cambiado (concreto)", height=90)
     util = st.text_input("Qué bloque fue más útil")
@@ -794,6 +743,10 @@ elif menu == "Bloque 9: El Nuevo Rumbo":
 elif menu == "📊 MIS RESPUESTAS":
     st.title("📊 Mis respuestas")
 
+    if not (st.session_state.get("user_key") or "").strip():
+        st.warning("Introduce tu **clave privada** en la barra lateral para ver tu historial privado.")
+        st.stop()
+
     df = df_all.copy()
     if df.empty:
         st.write("Aún no tienes registros guardados.")
@@ -802,20 +755,20 @@ elif menu == "📊 MIS RESPUESTAS":
         df["ts_dt"] = pd.to_datetime(df["timestamp"], errors="coerce")
         df["ts_date"] = df["ts_dt"].dt.date
 
-        # Panel de métricas arriba (producto)
+        # Métricas arriba (sin onboarding)
         st.markdown("### Progreso y adherencia")
-        metrics = compute_adherence_metrics(df, st.session_state.perfil)
+        m = compute_basic_metrics(df)
         c1, c2, c3, c4, c5 = st.columns(5)
         with c1:
-            st.metric("Racha actual", f"{metrics['streak']}")
+            st.metric("Racha actual", f"{m['streak']}")
         with c2:
-            st.metric("Mejor racha", f"{metrics['best_streak']}")
+            st.metric("Mejor racha", f"{m['best_streak']}")
         with c3:
-            st.metric("Días activos", f"{metrics['active_days']}")
+            st.metric("Días activos", f"{m['active_days']}")
         with c4:
-            st.metric("Días desde inicio", f"{metrics['days_total']}")
+            st.metric("Días totales", f"{m['days_total']}")
         with c5:
-            st.metric("Constancia", f"{metrics['active_rate']*100:.0f}%")
+            st.metric("Constancia", f"{m['active_rate']*100:.0f}%")
 
         st.markdown("---")
 
@@ -885,7 +838,6 @@ elif menu == "📊 MIS RESPUESTAS":
                 if len(daily):
                     st.line_chart(daily.set_index("ts_date"))
 
-            # Distribución por bloque
             by_block = dff.groupby("bloque").size().reindex(range(1, 10), fill_value=0).reset_index(name="registros")
             if PLOTLY_AVAILABLE:
                 fig_bar = px.bar(by_block, x="bloque", y="registros", title="Distribución por bloque")
@@ -895,7 +847,6 @@ elif menu == "📊 MIS RESPUESTAS":
 
         with tab3:
             st.markdown("### Insights")
-            # Insight simple: bloque más usado y día más activo
             if not dff.empty:
                 top_block = int(dff["bloque"].value_counts().index[0])
                 top_day = dff.groupby("ts_date").size().sort_values(ascending=False).head(1)
@@ -908,13 +859,8 @@ elif menu == "📊 MIS RESPUESTAS":
                     st.write(f"**Día más activo:** {top_day_str}")
                     card_end()
                 with c2:
-                    p = st.session_state.perfil
-                    obj_d = int(p.get("objetivo_dias_semana", 5))
-                    obj_b = int(p.get("objetivo_bloques_dia", 1))
-                    card("Objetivo", enunciado="Diseño de adherencia (no de perfección).")
-                    st.write(f"**Objetivo días/semana:** {obj_d}")
-                    st.write(f"**Objetivo bloques/día:** {obj_b}")
-                    st.write("Si hoy estás sin gasolina, haz 1 bloque. Si estás bien, haz 2. Si estás brillante, no te vengas arriba: repite mañana.")
+                    card("Regla mínima viable", enunciado="Adherencia: el músculo que manda.")
+                    st.write("Si hoy estás sin gasolina: 1 bloque. Si estás bien: 2. Si estás brillante: no te vengas arriba—repite mañana.")
                     card_end()
             else:
                 st.write("Sin datos en el rango filtrado.")
@@ -922,7 +868,9 @@ elif menu == "📊 MIS RESPUESTAS":
         st.write("")
         c1, c2, c3 = st.columns([0.45, 0.35, 0.2])
         with c1:
-            export_path = DATA_DIR / "history_export.csv"
+            _, export_file = get_user_storage_paths()
+            export_path = export_file if export_file is not None else (DATA_DIR / "history_export.csv")
+
             export_cols = ["timestamp", "bloque", "fecha", "concepto", "respuesta", "meta"]
             dff_export = dff.copy()[export_cols]
             dff_export.to_csv(export_path, index=False, encoding="utf-8")
