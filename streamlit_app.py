@@ -112,6 +112,7 @@ def extract_emotions_from_azimut(text: str) -> list[str]:
         if re.search(rf"\b{re.escape(e)}\b", text, flags=re.IGNORECASE):
             emotions.append(e)
 
+    # Heurística simple para listas separadas por comas
     for line in text.splitlines():
         line = line.strip()
         if "," in line and len(line) < 150 and re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", line):
@@ -129,6 +130,7 @@ EMOTIONS = extract_emotions_from_azimut(AZIMUT_TEXT)
 
 
 def circadian_checklist_from_corpus(_azimut: str, _news: str) -> list[str]:
+    # (Se mantiene la selección actual; si luego quieres que sea 100% extracción literal, lo ajustamos.)
     return [
         "Me acuesto y me levanto a horas consistentes (también fines de semana)",
         "Dormitorio fresco, oscuro y silencioso",
@@ -212,6 +214,12 @@ BENEFITS_BLOCK9 = azimut_benefits(NEWS_TEXT, AZIMUT_TEXT)
 
 # =========================================================
 # THEME / BRAND CSS
+# - Barra lateral azul fija
+# - En sidebar: primera línea (BLOQUE X / INICIO / MIS RESPUESTAS) amarilla; segunda línea (título) blanca
+# - Título del bloque negro con subrayado inferior azul
+# - Títulos de apartados negros con subrayado amarillo
+# - Enunciados negros y visibles
+# - Luna dentro de la barra lateral, abajo
 # =========================================================
 def apply_theme(dark: bool):
     if dark:
@@ -236,6 +244,7 @@ def apply_theme(dark: bool):
     st.markdown(
         f"""
         <style>
+          /* Base */
           .stApp {{
             background: {bg};
             color: {text};
@@ -247,34 +256,19 @@ def apply_theme(dark: bool):
             background: {BRAND_BLUE};
           }}
 
-          /* Título sidebar "Azimut": blanco, más grande, subrayado amarillo */
-          .az-sidebar-title {{
-            color: #ffffff;
-            font-weight: 950;
-            font-size: 1.55rem;
-            margin: 0.25rem 0 0.35rem 0;
-          }}
-          .az-sidebar-underline {{
-            height: 4px;
-            width: 92px;
-            background: {BRAND_YELLOW};
-            border-radius: 999px;
-            margin: 0 0 0.9rem 0;
-          }}
-
-          /* Radio dot (marca amarilla) */
+          /* Radio dot (marca) */
           section[data-testid="stSidebar"] input[type="radio"] {{
             accent-color: {BRAND_YELLOW} !important;
           }}
 
-          /* Separación entre items */
+          /* Separación visual entre items del menú */
           section[data-testid="stSidebar"] div[role="radiogroup"] > label {{
             padding: 12px 10px !important;
             margin: 9px 0px !important;
             border-radius: 14px !important;
           }}
 
-          /* Menú: 1ª línea amarilla (BLOQUE X / INICIO / MIS RESPUESTAS), 2ª línea blanca (título) */
+          /* Texto del menú: por defecto blanco, pero primera línea amarilla */
           section[data-testid="stSidebar"] div[role="radiogroup"] > label span {{
             color: #ffffff !important;
             font-weight: 700 !important;
@@ -283,8 +277,18 @@ def apply_theme(dark: bool):
           }}
           section[data-testid="stSidebar"] div[role="radiogroup"] > label span::first-line {{
             color: {BRAND_YELLOW} !important;
-            font-weight: 950 !important;
+            font-weight: 900 !important;
             letter-spacing: 0.2px !important;
+          }}
+
+          /* Título sidebar */
+          section[data-testid="stSidebar"] h2 {{
+            color: {BRAND_YELLOW} !important;
+            font-weight: 900 !important;
+          }}
+          section[data-testid="stSidebar"] label, section[data-testid="stSidebar"] p {{
+            color: {BRAND_YELLOW} !important;
+            font-weight: 800 !important;
           }}
 
           /* Cards */
@@ -297,17 +301,17 @@ def apply_theme(dark: bool):
           }}
           .az-muted {{ color: {muted} !important; }}
 
-          /* Botones: texto blanco */
+          /* Botones */
           div.stButton > button {{
             background-color: {BRAND_BLUE} !important;
-            color: #ffffff !important;
+            color: {BRAND_YELLOW} !important;
             border: 0px !important;
             border-radius: 14px !important;
             font-weight: 900 !important;
             padding: 0.65rem 1.05rem !important;
           }}
 
-          /* Títulos */
+          /* Títulos de bloque y sección */
           .az-block-title {{
             font-size: 2.1rem;
             font-weight: 900;
@@ -338,13 +342,14 @@ def apply_theme(dark: bool):
             margin-top: 0.25rem;
           }}
 
-          /* Panel resumen en Mis respuestas */
+          /* Encapsulado estilo "historial dashboard" */
           .az-panel {{
             background: {card};
             border: 1px solid {border};
             border-radius: 18px;
             padding: 18px;
           }}
+
           .az-statbar {{
             display: flex;
             gap: 12px;
@@ -371,40 +376,23 @@ def apply_theme(dark: bool):
             color: {BRAND_YELLOW if dark else BRAND_BLUE};
           }}
 
-          /* Tabs: subrayado activo azul (evita rojo por defecto) */
-          div[data-baseweb="tab-list"] button[aria-selected="true"] {{
-            border-bottom: 3px solid {BRAND_BLUE} !important;
-          }}
-
-          /* Multiselect chips: azul (evita rojo) */
-          div[data-baseweb="tag"] {{
-            background-color: {BRAND_BLUE} !important;
-            color: #ffffff !important;
-            border: 0px !important;
-          }}
-          div[data-baseweb="tag"] span {{
-            color: #ffffff !important;
-            font-weight: 800 !important;
-          }}
-
-          /* Luna: dentro sidebar, abajo izquierda, sin destacar */
+          /* Sidebar bottom moon */
           .az-sidebar-bottom {{
             position: fixed;
             bottom: 14px;
             left: 14px;
-            width: 320px;
+            width: 300px;
             z-index: 9999;
           }}
           .az-sidebar-bottom button {{
-            width: 38px !important;
-            height: 38px !important;
+            width: 44px !important;
+            height: 44px !important;
             border-radius: 999px !important;
             padding: 0px !important;
-            font-size: 16px !important;
-            background: {BRAND_BLUE} !important;  /* mismo color que la barra */
+            font-size: 18px !important;
+            background: {BRAND_BLUE} !important;
             color: {BRAND_YELLOW} !important;
-            box-shadow: none !important;         /* no “premium glow” */
-            border: 1px solid rgba(255,255,255,0.18) !important;
+            box-shadow: 0 10px 22px rgba(0,0,0,0.20) !important;
           }}
 
           /* Evitar "cajas" vacías estilo input sin label */
@@ -420,11 +408,8 @@ def apply_theme(dark: bool):
 apply_theme(st.session_state.dark_mode)
 
 # =========================================================
-# Sidebar header + moon toggle
+# Sidebar moon toggle (abajo)
 # =========================================================
-st.sidebar.markdown('<div class="az-sidebar-title">Azimut</div>', unsafe_allow_html=True)
-st.sidebar.markdown('<div class="az-sidebar-underline"></div>', unsafe_allow_html=True)
-
 st.sidebar.markdown('<div class="az-sidebar-bottom">', unsafe_allow_html=True)
 if st.sidebar.button("🌙", key="moon_toggle_sidebar", help="Modo oscuro"):
     st.session_state.dark_mode = not st.session_state.dark_mode
@@ -521,7 +506,7 @@ def guardar_respuesta(bloque: int, fecha_str: str, concepto: str, respuesta: str
 
 
 # =========================================================
-# UI helpers
+# UI helpers: titles / sections / cards / goto
 # =========================================================
 def block_title(title: str):
     st.markdown(f'<div class="az-block-title">{title}</div>', unsafe_allow_html=True)
@@ -565,7 +550,10 @@ def fecha_bloque(bloque: int):
 
 # =========================================================
 # NAVEGACIÓN (radio con dos líneas)
+# - Primera línea: BLOQUE X / INICIO / MIS RESPUESTAS (amarilla)
+# - Segunda línea: título del bloque (blanca)
 # =========================================================
+st.sidebar.title("🧭 Programa Azimut")
 MENU_ITEMS = [
     "INICIO",
     "BLOQUE 1\nVía Negativa",
@@ -586,6 +574,7 @@ menu = st.sidebar.radio("Ir a:", MENU_ITEMS, key="nav_menu")
 # =========================================================
 df_all = history_df()
 
+# ---------- INICIO ----------
 if menu == "INICIO":
     block_title("Azimut")
 
@@ -640,6 +629,7 @@ if menu == "INICIO":
             goto("BLOQUE 9\nEl Nuevo Rumbo")
     card_end()
 
+# ---------- BLOQUE 1 ----------
 elif menu == "BLOQUE 1\nVía Negativa":
     block_title("Bloque 1: Vía Negativa")
     instruction("Identifica lo que resta. Hoy no añadimos herramientas: quitamos lastre.")
@@ -652,6 +642,7 @@ elif menu == "BLOQUE 1\nVía Negativa":
     if st.button("Guardar compromiso"):
         guardar_respuesta(1, f, "Vía negativa — Resta del día", dato)
 
+# ---------- BLOQUE 2 ----------
 elif menu == "BLOQUE 2\nRitmos Circadianos":
     block_title("Bloque 2: Ritmos circadianos")
     instruction("Marca los puntos que has cumplido hoy (10–12 anclas diarias).")
@@ -667,6 +658,7 @@ elif menu == "BLOQUE 2\nRitmos Circadianos":
     if st.button("Guardar registro"):
         guardar_respuesta(2, f, "Ritmos circadianos — Hitos", ", ".join(seleccionados))
 
+# ---------- BLOQUE 3 ----------
 elif menu == "BLOQUE 3\nMarcadores Somáticos":
     block_title("Bloque 3: Marcadores somáticos")
     instruction("El cuerpo habla en dialectos: tensión, nudo, calor, vacío. Vamos a transcribirlo.")
@@ -699,6 +691,7 @@ elif menu == "BLOQUE 3\nMarcadores Somáticos":
     if st.button("Guardar registro"):
         guardar_respuesta(3, f, f"Marcador somático — Localización: {zona}", tipo)
 
+# ---------- BLOQUE 4 ----------
 elif menu == "BLOQUE 4\nRegistro de Precisión":
     block_title("Bloque 4: Registro de precisión")
     instruction("Aquí el objetivo no es ‘sentir menos’, sino **nombrar mejor**.")
@@ -715,6 +708,7 @@ elif menu == "BLOQUE 4\nRegistro de Precisión":
         meta = {"por_que": por_que, "donde": donde, "que_paso": que_paso}
         guardar_respuesta(4, f, "Precisión emocional — Etiquetado", emo, meta=meta)
 
+# ---------- BLOQUE 5 ----------
 elif menu == "BLOQUE 5\nGestión de Recursos":
     block_title("Bloque 5: Gestión de recursos")
     instruction("Un recurso es aquello que te deja más capaz después de usarlo, no más roto.")
@@ -739,6 +733,7 @@ elif menu == "BLOQUE 5\nGestión de Recursos":
         meta = {"por_que": p, "como": c, "despues": s}
         guardar_respuesta(5, f, "Gestión de recursos — Recurso fortalecido", recurso, meta=meta)
 
+# ---------- BLOQUE 6 ----------
 elif menu == "BLOQUE 6\nDetector de Sesgos":
     block_title("Bloque 6: Detector de sesgos")
     instruction("Sesgo = el piloto automático defendiendo su ruta como si fuera ley natural.")
@@ -752,6 +747,7 @@ elif menu == "BLOQUE 6\nDetector de Sesgos":
     if st.button("Guardar registro"):
         guardar_respuesta(6, f, f"Sesgos — {sesgo}", obs)
 
+# ---------- BLOQUE 7 ----------
 elif menu == "BLOQUE 7\nEl Abogado del Diablo":
     block_title("Bloque 7: El abogado del diablo")
     instruction("No es autoataque: es pinchar el globo del relato cuando se vuelve dogma.")
@@ -777,6 +773,7 @@ elif menu == "BLOQUE 7\nEl Abogado del Diablo":
     if st.button("Guardar registro"):
         guardar_respuesta(7, f, f"Abogado del diablo — Creencia: {creencia}", contra)
 
+# ---------- BLOQUE 8 ----------
 elif menu == "BLOQUE 8\nAntifragilidad":
     block_title("Bloque 8: Antifragilidad")
     instruction("No romantizamos el caos. Lo usamos como fertilizante cuando ya ha ocurrido.")
@@ -797,6 +794,7 @@ elif menu == "BLOQUE 8\nAntifragilidad":
     if st.button("Guardar registro"):
         guardar_respuesta(8, f, f"Antifragilidad — Evento: {caos}", ventaja)
 
+# ---------- BLOQUE 9 ----------
 elif menu == "BLOQUE 9\nEl Nuevo Rumbo":
     block_title("Bloque 9: El nuevo rumbo")
     instruction("Este bloque es cierre: úsalo cuando hayas completado el recorrido.")
@@ -805,13 +803,16 @@ elif menu == "BLOQUE 9\nEl Nuevo Rumbo":
     st.write("\n".join([f"- {x}" for x in BENEFITS_BLOCK9]))
 
     section_title("Reflexión final")
-    instruction("Qué aprendiste, cómo avanzaste por bloques, qué te costó y qué gestionas mejor ahora.")
+    instruction(
+        "Qué aprendiste, cómo avanzaste por bloques, qué te costó y qué gestionas mejor ahora."
+    )
     reflexion = st.text_area("Escribe tu reflexión:", height=190)
 
     if st.button("Guardar reflexión final"):
         guardar_respuesta(9, "", "Integración — Reflexión final", reflexion)
         st.balloons()
 
+# ---------- MIS RESPUESTAS ----------
 elif menu == "📊 MIS RESPUESTAS":
     block_title("Mis respuestas")
 
@@ -829,6 +830,7 @@ elif menu == "📊 MIS RESPUESTAS":
             min_d = date.today()
             max_d = date.today()
 
+        # ===== Filtros
         section_title("Filtros")
         f1, f2, f3 = st.columns([0.5, 0.5, 1.0])
         with f1:
@@ -845,6 +847,7 @@ elif menu == "📊 MIS RESPUESTAS":
         dff = df[df["bloque"].isin(bloques_sel)].copy()
         dff = dff[(dff["ts_date"].notna()) & (dff["ts_date"] >= start) & (dff["ts_date"] <= end)]
 
+        # ===== Panel resumen estilo dashboard (solo aquí, no en Inicio)
         dom_emo, dom_ctx = dominant_emotion_and_context(dff)
         recs = recommendations(dom_emo)
 
@@ -869,13 +872,17 @@ elif menu == "📊 MIS RESPUESTAS":
         )
         st.markdown("</div>", unsafe_allow_html=True)
 
+        # ===== Tabs
         tab1, tab2, tab3 = st.tabs(["Historial", "Gráficos", "Insights"])
 
+        # -------- HISTORIAL (formato humano)
         with tab1:
             section_title("Historial por bloque → por fecha")
+
             dff2 = dff.sort_values(by=["bloque", "fecha_sort", "timestamp"], ascending=[True, True, True])
 
             def render_meta(meta: dict):
+                # Mostrar campos conocidos, sin JSON feo
                 if not isinstance(meta, dict) or not meta:
                     return
                 rows = []
@@ -894,6 +901,7 @@ elif menu == "📊 MIS RESPUESTAS":
                     for label, v in rows:
                         st.markdown(f"**{label}:** {v}")
                 else:
+                    # Si no encaja en mapping, mostrar pares clave-valor sin estética JSON
                     for k, v in meta.items():
                         vv = str(v).strip()
                         if vv:
@@ -928,6 +936,7 @@ elif menu == "📊 MIS RESPUESTAS":
                             render_meta(meta)
                             st.divider()
 
+        # -------- GRÁFICOS (barra de frecuencia + línea actividad)
         with tab2:
             section_title("Visualización de datos")
 
@@ -936,12 +945,19 @@ elif menu == "📊 MIS RESPUESTAS":
 
             section_title("Actividad diaria (periodo)")
             if PLOTLY_AVAILABLE:
-                fig_line = px.line(daily, x="ts_date", y="registros", markers=True, title="")
+                fig_line = px.line(
+                    daily,
+                    x="ts_date",
+                    y="registros",
+                    markers=True,
+                    title="",
+                )
                 fig_line.update_layout(margin=dict(l=20, r=20, t=20, b=20))
                 st.plotly_chart(fig_line, use_container_width=True)
             else:
                 if len(daily):
-                    st.line_chart(daily.set_index("ts_date"))
+                    chart_df = daily.set_index("ts_date")
+                    st.line_chart(chart_df)
 
             section_title("Frecuencia de emociones (Bloque 4)")
             d4 = dff[dff["bloque"] == 4].copy()
@@ -952,7 +968,13 @@ elif menu == "📊 MIS RESPUESTAS":
                 emo_counts.columns = ["Emoción", "Frecuencia"]
 
                 if PLOTLY_AVAILABLE:
-                    fig_bar = px.bar(emo_counts, x="Frecuencia", y="Emoción", orientation="h", title="")
+                    fig_bar = px.bar(
+                        emo_counts,
+                        x="Frecuencia",
+                        y="Emoción",
+                        orientation="h",
+                        title="",
+                    )
                     fig_bar.update_layout(margin=dict(l=20, r=20, t=20, b=20))
                     st.plotly_chart(fig_bar, use_container_width=True)
                 else:
@@ -960,16 +982,19 @@ elif menu == "📊 MIS RESPUESTAS":
             else:
                 st.info("Aún no hay registros suficientes en el Bloque 4 para la distribución emocional.")
 
+        # -------- INSIGHTS (más destacado, sin la frase redundante, con espacio)
         with tab3:
             section_title("Sistema de análisis e inteligencia (Insights)")
+
             dom_emo, dom_ctx = dominant_emotion_and_context(dff)
             recs = recommendations(dom_emo)
 
             c1, c2 = st.columns(2)
+
             with c1:
                 st.markdown('<div class="az-card">', unsafe_allow_html=True)
                 st.markdown("### Detección de patrones")
-                st.write("")
+                st.write("")  # espacio
                 st.markdown(f"**Emoción dominante:** {dom_emo if dom_emo else '—'}")
                 st.markdown(f"**Contexto recurrente:** {dom_ctx if dom_ctx else '—'}")
                 st.markdown("</div>", unsafe_allow_html=True)
@@ -977,11 +1002,12 @@ elif menu == "📊 MIS RESPUESTAS":
             with c2:
                 st.markdown('<div class="az-card">', unsafe_allow_html=True)
                 st.markdown("### Recomendaciones dinámicas")
-                st.write("")
+                st.write("")  # espacio
                 for r in recs[:4]:
                     st.write(f"- {r}")
                 st.markdown("</div>", unsafe_allow_html=True)
 
+        # ===== Acciones inferiores
         st.write("")
         c1, c2, c3 = st.columns([0.45, 0.35, 0.2])
 
@@ -1006,3 +1032,5 @@ elif menu == "📊 MIS RESPUESTAS":
                 st.session_state.historial = []
                 save_history([])
                 st.rerun()
+
+
