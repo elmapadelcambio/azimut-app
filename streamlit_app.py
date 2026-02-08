@@ -236,7 +236,6 @@ def apply_theme(dark: bool):
     st.markdown(
         f"""
         <style>
-          /* Base */
           .stApp {{
             background: {bg};
             color: {text};
@@ -248,37 +247,37 @@ def apply_theme(dark: bool):
             background: {BRAND_BLUE};
           }}
 
-          /* Title "Azimut" custom */
-          .az-sb-title {{
+          /* Título sidebar "Azimut": blanco, más grande, subrayado amarillo */
+          .az-sidebar-title {{
             color: #ffffff;
             font-weight: 950;
-            font-size: 1.35rem;
-            margin: 0.25rem 0 0.25rem 0;
+            font-size: 1.55rem;
+            margin: 0.25rem 0 0.35rem 0;
           }}
-          .az-sb-underline {{
+          .az-sidebar-underline {{
             height: 4px;
-            width: 72px;
+            width: 92px;
             background: {BRAND_YELLOW};
             border-radius: 999px;
-            margin: 0.2rem 0 0.8rem 0;
+            margin: 0 0 0.9rem 0;
           }}
 
-          /* Radio dot (marca) */
+          /* Radio dot (marca amarilla) */
           section[data-testid="stSidebar"] input[type="radio"] {{
             accent-color: {BRAND_YELLOW} !important;
           }}
 
-          /* Separación visual entre items del menú */
+          /* Separación entre items */
           section[data-testid="stSidebar"] div[role="radiogroup"] > label {{
             padding: 12px 10px !important;
             margin: 9px 0px !important;
             border-radius: 14px !important;
           }}
 
-          /* Texto del menú: por defecto blanco, pero primera línea amarilla */
+          /* Menú: 1ª línea amarilla (BLOQUE X / INICIO / MIS RESPUESTAS), 2ª línea blanca (título) */
           section[data-testid="stSidebar"] div[role="radiogroup"] > label span {{
             color: #ffffff !important;
-            font-weight: 750 !important;
+            font-weight: 700 !important;
             line-height: 1.25 !important;
             white-space: pre-line !important;
           }}
@@ -286,12 +285,6 @@ def apply_theme(dark: bool):
             color: {BRAND_YELLOW} !important;
             font-weight: 950 !important;
             letter-spacing: 0.2px !important;
-          }}
-
-          /* Etiqueta del radio "Ir a:" */
-          section[data-testid="stSidebar"] label {{
-            color: {BRAND_YELLOW} !important;
-            font-weight: 900 !important;
           }}
 
           /* Cards */
@@ -304,7 +297,7 @@ def apply_theme(dark: bool):
           }}
           .az-muted {{ color: {muted} !important; }}
 
-          /* Botones (texto blanco para legibilidad) */
+          /* Botones: texto blanco */
           div.stButton > button {{
             background-color: {BRAND_BLUE} !important;
             color: #ffffff !important;
@@ -314,7 +307,7 @@ def apply_theme(dark: bool):
             padding: 0.65rem 1.05rem !important;
           }}
 
-          /* Títulos de bloque y sección */
+          /* Títulos */
           .az-block-title {{
             font-size: 2.1rem;
             font-weight: 900;
@@ -340,12 +333,12 @@ def apply_theme(dark: bool):
           }}
 
           .az-instruction {{
-            font-weight: 850;
+            font-weight: 800;
             color: {instruction};
             margin-top: 0.25rem;
           }}
 
-          /* Dashboard panel */
+          /* Panel resumen en Mis respuestas */
           .az-panel {{
             background: {card};
             border: 1px solid {border};
@@ -378,42 +371,40 @@ def apply_theme(dark: bool):
             color: {BRAND_YELLOW if dark else BRAND_BLUE};
           }}
 
-          /* MultiSelect tags (píldora de bloques) -> azul marca, no rojo */
-          [data-baseweb="tag"] {{
-            background-color: {BRAND_BLUE} !important;
-          }}
-          [data-baseweb="tag"] span {{
-            color: #ffffff !important;
-            font-weight: 900 !important;
-          }}
-
-          /* Tabs: subrayado activo azul marca (en Mis respuestas) */
-          button[role="tab"][aria-selected="true"] {{
+          /* Tabs: subrayado activo azul (evita rojo por defecto) */
+          div[data-baseweb="tab-list"] button[aria-selected="true"] {{
             border-bottom: 3px solid {BRAND_BLUE} !important;
           }}
-          button[role="tab"][aria-selected="true"] > div {{
-            color: {BRAND_BLUE} !important;
-            font-weight: 900 !important;
+
+          /* Multiselect chips: azul (evita rojo) */
+          div[data-baseweb="tag"] {{
+            background-color: {BRAND_BLUE} !important;
+            color: #ffffff !important;
+            border: 0px !important;
+          }}
+          div[data-baseweb="tag"] span {{
+            color: #ffffff !important;
+            font-weight: 800 !important;
           }}
 
-          /* Luna dentro de sidebar, abajo izquierda: discreta, sin sombra */
+          /* Luna: dentro sidebar, abajo izquierda, sin destacar */
           .az-sidebar-bottom {{
             position: fixed;
             bottom: 14px;
             left: 14px;
-            width: 300px;
+            width: 320px;
             z-index: 9999;
           }}
           .az-sidebar-bottom button {{
-            width: 42px !important;
-            height: 42px !important;
+            width: 38px !important;
+            height: 38px !important;
             border-radius: 999px !important;
             padding: 0px !important;
-            font-size: 18px !important;
-            background: {BRAND_BLUE} !important; /* mismo que la barra */
+            font-size: 16px !important;
+            background: {BRAND_BLUE} !important;  /* mismo color que la barra */
             color: {BRAND_YELLOW} !important;
-            box-shadow: none !important;
-            border: 1px solid rgba(255,255,255,0.28) !important;
+            box-shadow: none !important;         /* no “premium glow” */
+            border: 1px solid rgba(255,255,255,0.18) !important;
           }}
 
           /* Evitar "cajas" vacías estilo input sin label */
@@ -429,15 +420,10 @@ def apply_theme(dark: bool):
 apply_theme(st.session_state.dark_mode)
 
 # =========================================================
-# Sidebar title + moon toggle
+# Sidebar header + moon toggle
 # =========================================================
-st.sidebar.markdown(
-    f"""
-    <div class="az-sb-title">Azimut</div>
-    <div class="az-sb-underline"></div>
-    """,
-    unsafe_allow_html=True,
-)
+st.sidebar.markdown('<div class="az-sidebar-title">Azimut</div>', unsafe_allow_html=True)
+st.sidebar.markdown('<div class="az-sidebar-underline"></div>', unsafe_allow_html=True)
 
 st.sidebar.markdown('<div class="az-sidebar-bottom">', unsafe_allow_html=True)
 if st.sidebar.button("🌙", key="moon_toggle_sidebar", help="Modo oscuro"):
@@ -566,6 +552,9 @@ def goto(item: str):
     st.rerun()
 
 
+# =========================================================
+# Fecha por bloque (1–8)
+# =========================================================
 def fecha_bloque(bloque: int):
     st.caption("Fecha del registro (manual, para tu seguimiento):")
     key = f"fecha_bloque_{bloque}"
@@ -575,7 +564,7 @@ def fecha_bloque(bloque: int):
 
 
 # =========================================================
-# NAVEGACIÓN
+# NAVEGACIÓN (radio con dos líneas)
 # =========================================================
 MENU_ITEMS = [
     "INICIO",
@@ -687,9 +676,25 @@ elif menu == "BLOQUE 3\nMarcadores Somáticos":
     instruction("Localiza + nombra la sensación con precisión artesanal.")
     zona = st.selectbox(
         "¿Dónde lo sientes?",
-        ["Pecho", "Garganta", "Abdomen", "Mandíbula", "Hombros", "Cabeza", "Cuello", "Espalda", "Manos", "Brazos", "Piernas", "Pies"],
+        [
+            "Pecho",
+            "Garganta",
+            "Abdomen",
+            "Mandíbula",
+            "Hombros",
+            "Cabeza",
+            "Cuello",
+            "Espalda",
+            "Manos",
+            "Brazos",
+            "Piernas",
+            "Pies",
+        ],
     )
-    tipo = st.text_input("Describe la sensación (calor, nudo, presión, hormigueo, pesadez...):", label_visibility="visible")
+    tipo = st.text_input(
+        "Describe la sensación (calor, nudo, presión, hormigueo, pesadez...):",
+        label_visibility="visible",
+    )
 
     if st.button("Guardar registro"):
         guardar_respuesta(3, f, f"Marcador somático — Localización: {zona}", tipo)
@@ -873,6 +878,7 @@ elif menu == "📊 MIS RESPUESTAS":
             def render_meta(meta: dict):
                 if not isinstance(meta, dict) or not meta:
                     return
+                rows = []
                 mapping = [
                     ("por_que", "Por qué"),
                     ("donde", "Dónde estabas"),
@@ -880,13 +886,14 @@ elif menu == "📊 MIS RESPUESTAS":
                     ("como", "Cómo lo hiciste"),
                     ("despues", "Cómo te sientes después"),
                 ]
-                used = False
                 for k, label in mapping:
                     v = str(meta.get(k, "")).strip()
                     if v:
-                        used = True
+                        rows.append((label, v))
+                if rows:
+                    for label, v in rows:
                         st.markdown(f"**{label}:** {v}")
-                if not used:
+                else:
                     for k, v in meta.items():
                         vv = str(v).strip()
                         if vv:
@@ -902,7 +909,8 @@ elif menu == "📊 MIS RESPUESTAS":
                         resp = str(row.get("respuesta", "")).strip()
                         if resp:
                             st.write(resp)
-                        render_meta(row.get("meta", {}))
+                        meta = row.get("meta", {})
+                        render_meta(meta)
                         st.divider()
                 else:
                     bdf["group_date"] = bdf["fecha"].where(bdf["fecha"].astype(str).str.strip() != "", None)
@@ -916,7 +924,8 @@ elif menu == "📊 MIS RESPUESTAS":
                             resp = str(row.get("respuesta", "")).strip()
                             if resp:
                                 st.write(resp)
-                            render_meta(row.get("meta", {}))
+                            meta = row.get("meta", {})
+                            render_meta(meta)
                             st.divider()
 
         with tab2:
@@ -953,12 +962,10 @@ elif menu == "📊 MIS RESPUESTAS":
 
         with tab3:
             section_title("Sistema de análisis e inteligencia (Insights)")
-
             dom_emo, dom_ctx = dominant_emotion_and_context(dff)
             recs = recommendations(dom_emo)
 
             c1, c2 = st.columns(2)
-
             with c1:
                 st.markdown('<div class="az-card">', unsafe_allow_html=True)
                 st.markdown("### Detección de patrones")
