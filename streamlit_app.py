@@ -247,5 +247,3 @@ elif menu == "📊 MIS RESPUESTAS":
         with col_ex2:
             csv = df_filtered.to_csv(index=False).encode('utf-8')
             st.download_button("📥 Descargar Reporte CSV", data=csv, file_name="azimut_reporte.csv")
-
-# Nota: He abreviado los bloques 1-3 y 5-8 para mantener el código legible, 
