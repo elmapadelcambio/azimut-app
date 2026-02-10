@@ -34,23 +34,38 @@ DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
 
 # =========================================================
-# IDENTIDAD DE USUARIO (clave privada → archivo aislado)
+# IDENTIDAD DE USUARIO (email + clave → archivo aislado)
 # =========================================================
-def _hash_user_key(user_key: str) -> str:
-    # Hash estable, no reversible. “Separación” de datos por usuario.
-    return hashlib.sha256(user_key.encode("utf-8")).hexdigest()[:16]
+def normalize_email(s: str) -> str:
+    return (s or "").strip().lower()
+
+
+def normalize_key(s: str) -> str:
+    return (s or "").strip()
+
+
+def has_identity() -> bool:
+    email = normalize_email(st.session_state.get("user_email", ""))
+    key = normalize_key(st.session_state.get("user_key", ""))
+    return bool(email) and bool(key)
+
+
+def _hash_identity(email: str, user_key: str) -> str:
+    """
+    Hash estable y no reversible. Se deriva de email + ":" + clave.
+    """
+    raw = f"{normalize_email(email)}:{normalize_key(user_key)}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
 def get_user_storage_paths():
     """
-    Devuelve rutas a ficheros de historial por usuario.
-    Si no hay clave privada válida, NO hay persistencia (solo sesión).
+    Rutas a ficheros de historial por usuario.
+    Si no hay identidad válida → no hay persistencia.
     """
-    user_key = (st.session_state.get("user_key") or "").strip()
-    if not user_key:
-        return None, None  # sin persistencia
-
-    uid = _hash_user_key(user_key)
+    if not has_identity():
+        return None, None
+    uid = _hash_identity(st.session_state.user_email, st.session_state.user_key)
     history_file = DATA_DIR / f"history_{uid}.json"
     export_file = DATA_DIR / f"history_export_{uid}.csv"
     return history_file, export_file
@@ -61,10 +76,8 @@ def get_user_storage_paths():
 # =========================================================
 def load_history():
     history_file, _ = get_user_storage_paths()
-    # Si no hay clave privada → historial solo en memoria (no se mezcla con nadie)
     if history_file is None:
         return []
-
     if history_file.exists():
         try:
             return json.loads(history_file.read_text(encoding="utf-8"))
@@ -75,7 +88,6 @@ def load_history():
 
 def save_history(hist):
     history_file, _ = get_user_storage_paths()
-    # Sin clave privada no persistimos nada (evita fugas/mezclas)
     if history_file is None:
         return
     history_file.write_text(json.dumps(hist, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -188,7 +200,7 @@ def apply_theme():
     bg = BRAND_WHITE
     text = "#0b0f1a"
     muted = "#4b5563"
-    card = "#ffffff"
+    card_bg = "#ffffff"
     border = "rgba(10,20,40,0.10)"
     input_bg = "rgba(10,20,40,0.03)"
 
@@ -281,7 +293,7 @@ def apply_theme():
           }}
 
           .az-card {{
-            background: {card};
+            background: {card_bg};
             border: 1px solid {border};
             border-radius: 18px;
             padding: 18px 18px 16px 18px;
@@ -334,6 +346,20 @@ def apply_theme():
           hr {{
             border-color: {border} !important;
           }}
+
+          /* Caja IMPORTANTE en Inicio */
+          .az-important {{
+            border: 2px solid {BRAND_BLUE};
+            border-radius: 16px;
+            padding: 14px 16px;
+            background: rgba(0, 167, 255, 0.04);
+          }}
+          .az-important-title {{
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+          }}
         </style>
         """,
         unsafe_allow_html=True,
@@ -367,7 +393,6 @@ def compute_basic_metrics(df: pd.DataFrame):
     """
     Métricas de adherencia sin onboarding:
     - start = primer día con registro
-    - today = hoy
     - días activos = nº de días con al menos un registro
     - racha actual / mejor racha
     """
@@ -404,14 +429,14 @@ def compute_basic_metrics(df: pd.DataFrame):
     active_days = len(active_set)
     active_rate = active_days / days_total if days_total else 0.0
 
-    # streak actual
+    # racha actual
     streak = 0
     d = today
     while d >= start and d in active_set:
         streak += 1
         d = d - timedelta(days=1)
 
-    # best streak
+    # mejor racha
     best_streak = 0
     cur = 0
     d = start
@@ -438,9 +463,9 @@ def compute_basic_metrics(df: pd.DataFrame):
 # GUARDADO
 # =========================================================
 def guardar_respuesta(bloque: int, fecha_str: str, concepto: str, respuesta: str, meta: dict | None = None):
-    # Si no hay clave privada, no guardamos persistentemente (evita que se mezcle / filtre)
-    if not (st.session_state.get("user_key") or "").strip():
-        st.warning("Para guardar y ver un historial privado, introduce tu **clave privada** en la barra lateral.")
+    # Sin identidad (email + clave), NO se guarda (privacidad + aislamiento)
+    if not has_identity():
+        st.warning("Para guardar y ver un historial privado, introduce tu **email** y tu **clave privada** en la barra lateral.")
         return
 
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -458,33 +483,39 @@ def guardar_respuesta(bloque: int, fecha_str: str, concepto: str, respuesta: str
 
 
 # =========================================================
-# UI: navegación
+# UI: navegación + identidad
 # =========================================================
 st.sidebar.markdown('<div class="az-sidebar-title">Azimut</div>', unsafe_allow_html=True)
 
-# --- Clave privada (privacidad por usuario) ---
 st.sidebar.markdown("**Privacidad**")
+user_email_in = st.sidebar.text_input(
+    "Email",
+    value=st.session_state.get("user_email", ""),
+    help="Tu email + tu clave privada crean tu cuaderno personal. No enviamos correos: es solo un identificador.",
+)
 user_key_in = st.sidebar.text_input(
     "Clave privada (no la compartas)",
     type="password",
     value=st.session_state.get("user_key", ""),
-    help="Esto separa tu historial del resto de personas. Usa una frase/código que recuerdes.",
+    help="Usa una frase/código difícil de adivinar. Sin esto no se guarda nada.",
 )
-# Guardamos en session_state (solo para esta sesión)
+
+st.session_state.user_email = user_email_in
 st.session_state.user_key = user_key_in.strip()
 
-# Si cambia la clave, recarga historial correspondiente
-if "last_user_key" not in st.session_state:
-    st.session_state.last_user_key = st.session_state.user_key
+# Detecta cambio de identidad → recarga historial correcto
+current_identity = f"{normalize_email(st.session_state.user_email)}|{normalize_key(st.session_state.user_key)}"
+if "last_identity" not in st.session_state:
+    st.session_state.last_identity = current_identity
 
-if st.session_state.user_key != st.session_state.last_user_key:
+if current_identity != st.session_state.last_identity:
     st.session_state.historial = load_history()
-    st.session_state.last_user_key = st.session_state.user_key
+    st.session_state.last_identity = current_identity
     st.rerun()
 
 st.sidebar.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-if not st.session_state.user_key:
-    st.sidebar.info("Introduce tu clave para activar historial privado.")
+if not has_identity():
+    st.sidebar.info("Introduce **email + clave** para activar tu historial privado.")
 
 MENU_ITEMS = [
     "INICIO",
@@ -538,15 +569,30 @@ if menu == "INICIO":
     st.write(
         "Azimut funciona como un entrenamiento de precisión: cada bloque es una coordenada. "
         "Lo rellenas breve, lo guardas, y con el tiempo aparece lo valioso: **patrones**.\n\n"
-        "Importante: para que tu registro sea **personal y privado**, introduce una **clave privada** en la barra lateral. "
-        "Esa clave separa tu historial del resto de personas que usen el enlace.\n\n"
         "Tus respuestas se guardan en **“📊 MIS RESPUESTAS”**. Ahí puedes filtrar por fechas, "
         "ver tu historial por bloques y observar constancia."
+    )
+
+    # Caja IMPORTANTE (contorno azul 00a7ff)
+    st.markdown(
+        """
+        <div class="az-important">
+          <div class="az-important-title">IMPORTANTE</div>
+          <div>
+            Para que tu registro sea <b>personal y privado</b>, introduce tu <b>email</b> y una <b>clave privada</b> en la barra lateral.<br><br>
+            - Esa combinación crea tu <b>cuaderno</b> (solo tú puedes abrirlo).<br>
+            - Si entras otro día, usa el <b>mismo email</b> y la <b>misma clave</b> para ver tu evolución.<br>
+            - <b>Sin email + clave:</b> la app <u>no guarda</u> y <u>no muestra</u> “Mis respuestas”.<br><br>
+            Consejo: usa una frase larga (difícil de adivinar) y guárdala en tu gestor de contraseñas.
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
     card_end()
 
     st.markdown("---")
-    # Mini-panel de métricas (sin onboarding)
+    # Mini-panel de métricas (si hay datos)
     if not df_all.empty:
         dfm = df_all.copy()
         dfm["ts_dt"] = pd.to_datetime(dfm["timestamp"], errors="coerce")
@@ -621,7 +667,11 @@ elif menu == "Bloque 4: Raíz y Rama":
     st.write("Toda emoción compleja suele tener una base más simple.")
     f = fecha_bloque(4)
 
-    card("Registro", subtitle="Raíz (primaria) → Rama (secundaria).", enunciado="Separa la reacción automática de la historia mental.")
+    card(
+        "Registro",
+        subtitle="Raíz (primaria) → Rama (secundaria).",
+        enunciado="Separa la reacción automática de la historia mental.",
+    )
     situacion = st.text_input("Situación")
     primaria = st.text_input("Emoción primaria (raíz)")
     secundaria = st.text_input("Emoción secundaria (rama)")
@@ -677,7 +727,11 @@ elif menu == "Bloque 7: El Abogado del Diablo":
     st.write("No es autoataque: es higiene mental.")
     f = fecha_bloque(7)
 
-    card("Registro", subtitle="Frase literal → evidencia → nueva formulación.", enunciado="Cuando el relato se vuelve dogma, se pincha el globo.")
+    card(
+        "Registro",
+        subtitle="Frase literal → evidencia → nueva formulación.",
+        enunciado="Cuando el relato se vuelve dogma, se pincha el globo.",
+    )
     creencia = st.text_input("Creencia limitante (literal)")
     evidencia = st.text_area("Evidencia que la contradice (hechos, no deseo)", height=110)
     nueva = st.text_area("Nueva formulación (más realista / más útil)", height=90)
@@ -710,7 +764,7 @@ elif menu == "Bloque 9: El Nuevo Rumbo":
     st.write("Cierre del recorrido. Integración: pocas ideas, mucha verdad.")
     f = fecha_bloque(9)
 
-    # ✅ Lista de beneficios EN CARD (antes de las entradas existentes)
+    # Lista de beneficios EN CARD (antes de las entradas existentes)
     card("¿Qué me llevo de esto?", subtitle=None, enunciado=None)
     st.write(
         "- Nombrar mis emociones con más precisión (menos niebla).\n"
@@ -743,8 +797,9 @@ elif menu == "Bloque 9: El Nuevo Rumbo":
 elif menu == "📊 MIS RESPUESTAS":
     st.title("📊 Mis respuestas")
 
-    if not (st.session_state.get("user_key") or "").strip():
-        st.warning("Introduce tu **clave privada** en la barra lateral para ver tu historial privado.")
+    # Sin identidad → no se muestra nada
+    if not has_identity():
+        st.warning("Introduce tu **email** y tu **clave privada** en la barra lateral para ver tu historial privado.")
         st.stop()
 
     df = df_all.copy()
@@ -755,7 +810,7 @@ elif menu == "📊 MIS RESPUESTAS":
         df["ts_dt"] = pd.to_datetime(df["timestamp"], errors="coerce")
         df["ts_date"] = df["ts_dt"].dt.date
 
-        # Métricas arriba (sin onboarding)
+        # Métricas arriba
         st.markdown("### Progreso y adherencia")
         m = compute_basic_metrics(df)
         c1, c2, c3, c4, c5 = st.columns(5)
