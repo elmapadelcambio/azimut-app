@@ -86,7 +86,6 @@ def save_history(hist):
     history_file.write_text(json.dumps(hist, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-# Historial en memoria (se recarga al cambiar identidad)
 if "historial" not in st.session_state:
     st.session_state.historial = load_history()
 
@@ -170,6 +169,7 @@ def biases_cached() -> list[str]:
             "Heurística de autoridad",
             "Heurística de disponibilidad",
             "Heurística de representatividad",
+            "Heurística de representatividad",
             "Efecto halo",
             "Efecto anclaje",
             "Efecto bandwagon / efecto manada",
@@ -228,7 +228,7 @@ def apply_theme():
             font-weight: 600 !important;
           }}
 
-          /* 👇 IMPORTANTÍSIMO: inputs del sidebar con texto NEGRO (y placeholders grises) */
+          /* Inputs del sidebar con texto NEGRO */
           section[data-testid="stSidebar"] input,
           section[data-testid="stSidebar"] textarea {{
             color: {text} !important;
@@ -241,7 +241,7 @@ def apply_theme():
             -webkit-text-fill-color: rgba(11,15,26,0.55) !important;
           }}
 
-          /* Inputs global: texto negro (evita “texto invisible” en algunos navegadores) */
+          /* Inputs global */
           input, textarea {{
             color: {text} !important;
             -webkit-text-fill-color: {text} !important;
@@ -271,7 +271,7 @@ def apply_theme():
             color: {text};
           }}
 
-          /* Título de bloque (negro) + subrayado inferior azul */
+          /* Título de bloque + subrayado */
           h1, h2 {{
             color: {text} !important;
           }}
@@ -285,7 +285,7 @@ def apply_theme():
             margin-top: 10px;
           }}
 
-          /* Subtítulos internos (negro) + subrayado amarillo */
+          /* Subtítulos internos + subrayado amarillo */
           h3 {{
             color: {text} !important;
             margin-bottom: 10px !important;
@@ -300,7 +300,7 @@ def apply_theme():
             margin-top: 10px;
           }}
 
-          /* Párrafos con más aire (evita “texto apelmazado”) */
+          /* Párrafos con más aire */
           .stMarkdown p {{
             margin-bottom: 18px !important;
             line-height: 1.55 !important;
@@ -375,9 +375,19 @@ def apply_theme():
             margin-bottom: 8px;
           }}
 
-          /* ✅ Evita “bloques blancos vacíos” tipo containers/empty spacing raros */
+          /* ✅ Eliminación agresiva de “bloques vacíos” que aparecen como tarjetas blancas */
+          div:empty {{
+            display: none !important;
+          }}
+          section.main > div:empty {{
+            display: none !important;
+          }}
           [data-testid="stVerticalBlock"] > div:empty {{
             display: none !important;
+          }}
+          [data-testid="stVerticalBlock"] > div:has(> div:empty) {{
+            margin: 0 !important;
+            padding: 0 !important;
           }}
         </style>
         """,
@@ -388,7 +398,7 @@ def apply_theme():
 apply_theme()
 
 # =========================================================
-# DF + analítica
+# DF
 # =========================================================
 def history_df():
     hist = st.session_state.historial
@@ -406,68 +416,6 @@ def to_sortable_date(d):
         return datetime.strptime(d, "%d/%m/%Y").strftime("%Y-%m-%d")
     except Exception:
         return None
-
-
-def compute_basic_metrics(df: pd.DataFrame):
-    if df.empty:
-        return {
-            "start": None,
-            "today": date.today(),
-            "days_total": 0,
-            "active_days": 0,
-            "active_rate": 0.0,
-            "streak": 0,
-            "best_streak": 0,
-        }
-
-    df2 = df[df["ts_date"].notna()].copy()
-    if df2.empty:
-        return {
-            "start": None,
-            "today": date.today(),
-            "days_total": 0,
-            "active_days": 0,
-            "active_rate": 0.0,
-            "streak": 0,
-            "best_streak": 0,
-        }
-
-    start = df2["ts_date"].min()
-    today = date.today()
-    days_total = (today - start).days + 1
-    if days_total < 1:
-        days_total = 1
-
-    active_set = set(df2["ts_date"].tolist())
-    active_days = len(active_set)
-    active_rate = active_days / days_total if days_total else 0.0
-
-    streak = 0
-    d = today
-    while d >= start and d in active_set:
-        streak += 1
-        d = d - timedelta(days=1)
-
-    best_streak = 0
-    cur = 0
-    d = start
-    while d <= today:
-        if d in active_set:
-            cur += 1
-            best_streak = max(best_streak, cur)
-        else:
-            cur = 0
-        d = d + timedelta(days=1)
-
-    return {
-        "start": start,
-        "today": today,
-        "days_total": days_total,
-        "active_days": active_days,
-        "active_rate": active_rate,
-        "streak": streak,
-        "best_streak": best_streak,
-    }
 
 
 # =========================================================
@@ -497,7 +445,6 @@ def guardar_respuesta(bloque: int, fecha_str: str, concepto: str, respuesta: str
 # =========================================================
 st.sidebar.markdown('<div class="az-sidebar-title">Azimut</div>', unsafe_allow_html=True)
 
-# ✅ Identidad en un expander (evita “bloques blancos enormes” y ordena)
 with st.sidebar.expander("Privacidad", expanded=True):
     st.markdown("Tu historial es **privado** y depende de tu **email + clave**.")
     user_email_in = st.text_input(
@@ -543,7 +490,7 @@ MENU_ITEMS = [
 menu = st.sidebar.radio("Ir a:", MENU_ITEMS, key="nav_menu")
 
 # =========================================================
-# UI helpers: cards + fecha
+# UI helpers
 # =========================================================
 def card(title: str, subtitle: str | None = None, enunciado: str | None = None):
     st.markdown('<div class="az-card">', unsafe_allow_html=True)
@@ -573,9 +520,7 @@ def fecha_bloque(bloque: int):
 # =========================================================
 df_all = history_df()
 
-# ---------- INICIO ----------
 if menu == "INICIO":
-    # ✅ Subtítulo más visible (en negrita)
     card("Azimut", "<b>Cuaderno de navegación: no es para pensar más, es para pensar mejor.</b>")
     st.markdown(
         """
@@ -598,15 +543,19 @@ if menu == "INICIO":
         unsafe_allow_html=True,
     )
 
-    # Caja IMPORTANTE (contorno azul 00a7ff)
     st.markdown(
         """
         <div class="az-important">
           <div class="az-important-title">IMPORTANTE</div>
           <div>
             Para que tu registro sea <b>personal y privado</b>, introduce tu <b>email</b> y una <b>clave privada</b> en la barra lateral.<br><br>
-            - Esa combinación crea tu <b>cuaderno</b> (solo tú puedes abrirlo).<br>
-            - Si entras otro día, usa el <b>mismo email</b> y la <b>misma clave</b> para ver tu evolución.<br>
+
+            <b>Paso a paso (sin dudas):</b><br>
+            1) Escribe tu <b>email</b> y tu <b>clave privada</b> (solo escribirlos ya sirve; <b>no</b> hace falta pulsar Enter).<br>
+            2) Luego completa cualquier bloque y pulsa <b>“Guardar…”</b> (ese botón es lo que guarda tus respuestas).<br>
+            3) Ve a <b>“📊 MIS RESPUESTAS”</b> para ver tu historial y evolución.<br><br>
+
+            - Si entras otro día, usa el <b>mismo email</b> y la <b>misma clave</b> para recuperar tu cuaderno.<br>
             - <b>Sin email + clave:</b> la app <u>no guarda</u> y <u>no muestra</u> “Mis respuestas”.<br><br>
             Consejo: usa una frase larga (difícil de adivinar) y guárdala en tu gestor de contraseñas.
           </div>
@@ -616,24 +565,6 @@ if menu == "INICIO":
     )
     card_end()
 
-    st.markdown("---")
-    if not df_all.empty:
-        dfm = df_all.copy()
-        dfm["ts_dt"] = pd.to_datetime(dfm["timestamp"], errors="coerce")
-        dfm["ts_date"] = dfm["ts_dt"].dt.date
-        m = compute_basic_metrics(dfm)
-
-        c1, c2, c3, c4 = st.columns(4)
-        with c1:
-            st.metric("Racha actual", f"{m['streak']} día(s)")
-        with c2:
-            st.metric("Mejor racha", f"{m['best_streak']} día(s)")
-        with c3:
-            st.metric("Días activos", f"{m['active_days']}")
-        with c4:
-            st.metric("Constancia", f"{m['active_rate']*100:.0f}%")
-
-# ---------- BLOQUE 1 ----------
 elif menu == "Bloque 1: Vía Negativa":
     st.header("Bloque 1: Vía negativa")
     st.write("Antes de añadir soluciones, quita lo que empeora la situación.")
@@ -646,7 +577,6 @@ elif menu == "Bloque 1: Vía Negativa":
     if st.button("Guardar compromiso"):
         guardar_respuesta(1, f, "Vía negativa — Resta del día", dato)
 
-# ---------- BLOQUE 2 ----------
 elif menu == "Bloque 2: Aproximación/Retirada":
     st.header("Bloque 2: Aproximación o retirada")
     st.write("Tu cerebro decide primero si acercarse o alejarse.")
@@ -662,7 +592,6 @@ elif menu == "Bloque 2: Aproximación/Retirada":
         meta = {"situacion": situacion, "utilidad": utilidad}
         guardar_respuesta(2, f, f"Dirección conductual — {direccion}", direccion, meta=meta)
 
-# ---------- BLOQUE 3 ----------
 elif menu == "Bloque 3: Arquitectura Emocional":
     st.header("Bloque 3: Arquitectura emocional")
     st.write("No todo lo que sientes es lo mismo. Distinguir capas te da palanca.")
@@ -685,7 +614,6 @@ elif menu == "Bloque 3: Arquitectura Emocional":
         }
         guardar_respuesta(3, f, "Arquitectura emocional — Registro", situacion, meta=meta)
 
-# ---------- BLOQUE 4 ----------
 elif menu == "Bloque 4: Raíz y Rama":
     st.header("Bloque 4: Raíz y rama")
     st.write("Toda emoción compleja suele tener una base más simple.")
@@ -707,7 +635,6 @@ elif menu == "Bloque 4: Raíz y Rama":
         meta = {"primaria": primaria, "secundaria": secundaria, "pensamiento": pensamiento}
         guardar_respuesta(4, f, f"Raíz y rama — {situacion}", reflexion, meta=meta)
 
-# ---------- BLOQUE 5 ----------
 elif menu == "Bloque 5: Precisión Emocional":
     st.header("Bloque 5: Precisión emocional")
     st.write("Lo que se nombra, se puede regular.")
@@ -725,7 +652,6 @@ elif menu == "Bloque 5: Precisión Emocional":
         meta = {"antes": antes, "precisas": precisas, "cuerpo": cuerpo}
         guardar_respuesta(5, f, f"Precisión emocional — {situacion}", frase, meta=meta)
 
-# ---------- BLOQUE 6 ----------
 elif menu == "Bloque 6: Detector de Sesgos":
     st.header("Bloque 6: Detector de sesgos")
     st.write("El piloto automático es eficiente… y a veces tramposo.")
@@ -745,7 +671,6 @@ elif menu == "Bloque 6: Detector de Sesgos":
         meta = {"situacion": situacion, "pensamiento": pensamiento, "alternativa": alternativa}
         guardar_respuesta(6, f, f"Sesgo — {sesgo}", alternativa, meta=meta)
 
-# ---------- BLOQUE 7 ----------
 elif menu == "Bloque 7: El Abogado del Diablo":
     st.header("Bloque 7: El abogado del diablo")
     st.write("No es autoataque: es higiene mental.")
@@ -765,7 +690,6 @@ elif menu == "Bloque 7: El Abogado del Diablo":
         meta = {"evidencia": evidencia}
         guardar_respuesta(7, f, f"Abogado del diablo — {creencia}", nueva, meta=meta)
 
-# ---------- BLOQUE 8 ----------
 elif menu == "Bloque 8: Antifragilidad":
     st.header("Bloque 8: Antifragilidad")
     st.write("No romantizamos el caos: lo convertimos en información.")
@@ -782,7 +706,6 @@ elif menu == "Bloque 8: Antifragilidad":
         meta = {"habilidad": habilidad, "distinto": distinto}
         guardar_respuesta(8, f, f"Antifragilidad — {evento}", aprendizaje, meta=meta)
 
-# ---------- BLOQUE 9 ----------
 elif menu == "Bloque 9: El Nuevo Rumbo":
     st.header("Bloque 9: El nuevo rumbo")
     st.write("Cierre del recorrido. Integración: pocas ideas, mucha verdad.")
@@ -816,7 +739,6 @@ elif menu == "Bloque 9: El Nuevo Rumbo":
         guardar_respuesta(9, f, "Integración — Cierre", cambio, meta=meta)
         st.balloons()
 
-# ---------- MIS RESPUESTAS ----------
 elif menu == "📊 MIS RESPUESTAS":
     st.title("📊 Mis respuestas")
 
@@ -831,22 +753,6 @@ elif menu == "📊 MIS RESPUESTAS":
         df["fecha_sort"] = df["fecha"].apply(lambda x: to_sortable_date(x) if isinstance(x, str) else None)
         df["ts_dt"] = pd.to_datetime(df["timestamp"], errors="coerce")
         df["ts_date"] = df["ts_dt"].dt.date
-
-        st.markdown("### Progreso y adherencia")
-        m = compute_basic_metrics(df)
-        c1, c2, c3, c4, c5 = st.columns(5)
-        with c1:
-            st.metric("Racha actual", f"{m['streak']}")
-        with c2:
-            st.metric("Mejor racha", f"{m['best_streak']}")
-        with c3:
-            st.metric("Días activos", f"{m['active_days']}")
-        with c4:
-            st.metric("Días totales", f"{m['days_total']}")
-        with c5:
-            st.metric("Constancia", f"{m['active_rate']*100:.0f}%")
-
-        st.markdown("---")
 
         min_d = df["ts_date"].dropna().min()
         max_d = df["ts_date"].dropna().max()
